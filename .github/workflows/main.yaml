@@ -1,0 +1,47 @@
+name: template-ci-workflow
+
+on: [push]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    container:
+      image: gcr.io/pingpong-internal/python:3.9
+      credentials:
+        username: _json_key
+        password: ${{ secrets.PINGPONG_RESEARCH_GCR_SERVICE_ACCOUNT }}
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Load Package Cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ hashFiles('requirements.txt') }}-${{ hashFiles('requirements-dev.txt') }}
+          restore-keys: |
+            pip-
+      - name: Make Cache Directory
+        if: steps.cache-primes.outputs.cache-hit != 'true'
+        run: mkdir -p ~/.cache/pip
+
+      - name: Install Package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Check Git Convention
+        run: |
+          curl -sSL https://scatterlab-ci-scripts.s3.ap-northeast-2.amazonaws.com/branch_name_checker.sh | bash
+          curl -sSL https://scatterlab-ci-scripts.s3.ap-northeast-2.amazonaws.com/commit_message_checker.sh | bash
+
+      - name: Check Lint
+        run: |
+          black --check .
+          flake8 .
+          isort -c .
+
+      - name: Run Test
+        run: |
+          pytest --cov-branch --cov
