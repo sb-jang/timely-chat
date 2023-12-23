@@ -1,7 +1,6 @@
 {
-  "include": ["pack"],
+  "include": ["timeliness"],
   "venvPath": "venv",
-
   "reportUnknownVariableType": true,
   "reportUnknownMemberType": true,
   "reportUnusedImport": true,
@@ -19,7 +18,6 @@
   "reportUnnecessaryCast": true,
   "reportAssertAlwaysTrue": true,
   "reportSelfClsParameterName": true,
-
   "pythonVersion": "3.9",
   "pythonPlatform": "Linux"
 }
