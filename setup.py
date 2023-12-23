@@ -1,12 +1,12 @@
 from setuptools import find_packages, setup
 
 setup(
-    name="python-39-template-repository",
+    name="timeliness-research-repository",
     version="0.0.1",
-    description="python template repository",
+    description="timeliness research repository",
     install_requires=[],
-    url="https://github.com/scatterlab/python-39-template-repository.git",
-    author="ScatterLab",
-    author_email="developers@scatterlab.co.kr",
+    url="https://github.com/sb-jang/timeliness-research.git",
+    author="Seongbo Jang",
+    author_email="jang.sb@postech.ac.kr",
     packages=find_packages(exclude=["tests"]),
 )
