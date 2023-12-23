@@ -26,11 +26,11 @@ from tqdm import tqdm
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, get_cosine_schedule_with_warmup
 from transformers.trainer_pt_utils import get_parameter_names
 
+from timeliness.config import ArtifactConfig, ExecutionConfig, ExperimentConfig, TrainConfig
+from timeliness.dataset import TimelinessDataset
 from timeliness.utils.argparser import build_parser, parse_args
 from timeliness.utils.logging import TQDM_FORMAT, create_logger
 from timeliness.utils.utils import log_mlflow_metric, log_mlflow_param, print_config, set_seed
-from timeliness.config import ArtifactConfig, ExecutionConfig, ExperimentConfig, TrainConfig
-from timeliness.dataset import TimelinessDataset
 
 # Load dotenv
 load_dotenv()
