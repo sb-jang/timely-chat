@@ -9,7 +9,7 @@ from typing import Optional, TextIO
 import tqdm
 
 __LOG_FORMAT = "Rank({rank}) | %(asctime)s | %(levelname)8s | %(message)s"
-TQDM_FORMAT = "{l_bar}{bar}| {n:.2f}/{total:.2f} [{elapsed}<{remaining}, {rate_fmt}{postfix}]"
+TQDM_FORMAT = "{l_bar}{bar}| {n}/{total} [{elapsed}<{remaining}, {rate_fmt}{postfix}]"
 
 
 def __get_caller_module_name() -> str:
