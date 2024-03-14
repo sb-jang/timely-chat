@@ -155,7 +155,7 @@ def run(
     logger.info("[+] Loading train/val datasets...")
     with open("/home/seongbo/timely-chat/resources/data/train.json", "r") as f:
         train_dataset = json.load(f)
-    train_dataset = TimelyChatDataset(train_dataset, tokenizer)
+    train_dataset = TimelyChatDataset(train_dataset, tokenizer, immediate_dropout=train_config.immediate_dropout)
     train_datasampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
     train_dataloader = DataLoader(
         dataset=train_dataset,
@@ -376,7 +376,9 @@ def run(
                 if rank == 0:
                     model_weight_path = os.path.join(
                         experiment_config.weight_output_dir,
-                        f"{experiment_config.run_name}-epoch-{epoch}-step-{step}",
+                        artifact_config.pretrained_model.split("/")[-1],
+                        experiment_config.run_name,
+                        f"epoch-{epoch}-step-{step}",
                     )
                     logger.info(f"[+] Saving the model weights (Epoch: {epoch}, Step: {step}/{total_steps})...")
                     model.module.save_pretrained(model_weight_path, safe_serialization=False)
@@ -398,7 +400,12 @@ def run(
     # > Save the trained model
     # ==================================================
     if rank == 0:
-        model_weight_path = os.path.join(experiment_config.weight_output_dir, f"{experiment_config.run_name}-final")
+        model_weight_path = os.path.join(
+            experiment_config.weight_output_dir,
+            artifact_config.pretrained_model.split("/")[-1],
+            experiment_config.run_name,
+            "final",
+        )
 
         # if already exists, save with temporary name
         if os.path.exists(model_weight_path):

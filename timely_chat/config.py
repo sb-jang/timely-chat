@@ -15,8 +15,8 @@ class ArtifactConfig:
 @dataclass
 @group("Train Experiment Setting", "학습 관련 설정")
 class TrainConfig:
-    epoch: int = field(5, help="학습 진행할 epoch 수")
-    learning_rate: float = field(1e-6, help="Learning Rate")
+    epoch: int = field(3, help="학습 진행할 epoch 수")
+    learning_rate: float = field(1e-5, help="Learning Rate")
     train_batch_size: int = field(32, help="학습에 사용할 배치수")
     dev_batch_size: int = field(32, help="Dev에 사용할 배치수")
     warmup_step_ratio: float = field(0.1, help="Warmup Ratio")
@@ -32,6 +32,7 @@ class TrainConfig:
     adam_eps: float = field(1e-8, help="Adam optimizer epsilon")
     hidden_dropout: float = field(0.2, help="Residual dropout ratio")
     attention_dropout: float = field(0.2, help="Attention dropout ratio")
+    immediate_dropout: float = field(0.0, help="Immediate response time dropout ratio")
 
 
 @dataclass
@@ -47,8 +48,8 @@ class ExperimentConfig:
 
     # 실험 중 출력되는 파일들이 작성되는 주기 설정
     steps_per_log: int = field(10, help="학습 로그 출력 빈도")
-    steps_per_valid: int = field(250, help="validation을 시행할 빈도")
-    steps_per_model_save: int = field(250, help="모델 체크포인트를 저장할 빈도")
+    steps_per_valid: int = field(100, help="validation을 시행할 빈도")
+    steps_per_model_save: int = field(500, help="모델 체크포인트를 저장할 빈도")
 
 
 @dataclass
