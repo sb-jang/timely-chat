@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import torch
@@ -6,23 +6,16 @@ from torch.utils.data import Dataset
 from transformers import AutoTokenizer
 
 
-def sample_minute() -> int:
-    """
-    Sample a minute from 0 to 5 from the following distribution:
-    0.5 for 0, 0.1 otherwise
-
-    :return: random minute for immediate response
-    """
-    return np.random.choice([0, 1, 2, 3, 4, 5], p=[0.5, 0.1, 0.1, 0.1, 0.1, 0.1])
-
-
 class TimelyChatDataset(Dataset):
     def __init__(
         self,
-        raw_instances: List[Dict[str, Any]],
+        raw_instances: List[Dict[str, Union[str, List[str]]]],
         tokenizer: AutoTokenizer,
-        turn_separator: str = " <turn> ",
-        immediate_dropout: float = 0.0,
+        speaker_token: str = "<spk>",
+        time_token: str = "<time>",
+        utterance_token: str = "<utt>",
+        instantaneous_dropout: float = 0.0,
+        model_type: str = "causal",
     ):
         """
         Dataset for supervised finetuning
@@ -32,44 +25,57 @@ class TimelyChatDataset(Dataset):
         [
             {
                 "context": list of str,
+                "speaker_list": list of str,
                 "time_elapsed": str,
-                "delayed_response": str,
-                "immediate_response": str,
+                "target_speaker": str,
+                "timely_response": str,
+                "untimely_response": str,
+                "narrative": str,
             }
         ]
-        :param tokenizer: Huggingface tokenizer
-        :param turn_separator: Separator for each turn
-        :param immediate_dropout: Probability of dropping time_elapsed sequence for immediate response
+        :param tokenizer: huggingface tokenizer
+        :param speaker_token: token to denote start of speaker of current turn
+        :param time_token: token to denote start of time difference between consecutive messages
+        :param utterance_token: token to denote start of utterance
+        :param instantaneous_dropout: dropout rate of time_elapsed sequence for immediate response
+        :param model_type: causal (decoder) or seq2seq (encoder-decoder)
         """
         self.tokenizer = tokenizer
         self.supervised_finetuning_instances = raw_instances
-        self.turn_separator = turn_separator
-        self.immediate_dropout = immediate_dropout
+        self.speaker_token = speaker_token
+        self.time_token = time_token
+        self.utterance_token = utterance_token
+        self.instantaneous_dropout = instantaneous_dropout
+        self.model_type = model_type
 
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
         instance = self.supervised_finetuning_instances[index]
 
         # make dialogue history
-        context = f"{self.turn_separator}{instance['context'][0]}"
-        for turn in instance["context"][1:]:
-            drop = np.random.rand() < self.immediate_dropout
+        context = f"{self.speaker_token} {instance['speaker_list'][0]}: {self.utterance_token}{instance['context'][0]}"
+        for speaker, utterance in zip(instance["speaker_list"][1:], instance["context"][1:]):
+            context += f" {self.speaker_token} {speaker}:"
+            drop = np.random.rand() < self.instantaneous_dropout
             if not drop:
-                minute = sample_minute()
-                suffix = "minute" if minute in [0, 1] else "minutes"
-                context += f" <sep> {minute} {suffix} later"
-            context += f"{self.turn_separator}{turn}"
+                context += f" {self.time_token} 0 minutes later"
+            context += f" {self.utterance_token} {utterance}"
         # append time-conditional sequence to the end of encoder input
-        context += f" <sep> {instance['time_elapsed']} later{self.turn_separator}"
+        context += f" {self.speaker_token} {instance['target_speaker']}: {self.time_token} {instance['time_elapsed']} later {self.utterance_token} "
 
-        response = instance["delayed_response"]
+        response = instance["timely_response"]
 
-        input_ids = self.tokenizer(context, padding="max_length", truncation=True)["input_ids"]
-        label_ids = self.tokenizer(response, padding="max_length", truncation=True)["input_ids"]
+        if self.model_type == "seq2seq":
+            input_ids = self.tokenizer(context, padding="max_length", truncation=True)["input_ids"]
+            label_ids = self.tokenizer(response, padding="max_length", truncation=True)["input_ids"]
+        else:
+            context += response
+            input_ids = self.tokenizer(context, padding="max_length", truncation=True)["input_ids"]
+            label_ids = input_ids
 
-        return (
-            torch.tensor(input_ids, dtype=torch.long),
-            torch.tensor(label_ids, dtype=torch.long),
-        )
+            input_ids = input_ids[:-1]
+            label_ids = label_ids[1:]
+
+        return torch.tensor(input_ids, dtype=torch.long), torch.tensor(label_ids, dtype=torch.long)
 
     def __len__(self) -> int:
         return len(self.supervised_finetuning_instances)

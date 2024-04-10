@@ -74,7 +74,6 @@ def print_config(*configurations, logger: Logger = Logger.root):
             logger.info(f"[+] \tnum_attention_heads: {config.num_attention_heads}")
             logger.info(f"[+] \tbos_token_id: {config.bos_token_id}")
             logger.info(f"[+] \teos_token_id: {config.eos_token_id}")
-            logger.info(f"[+] \thidden_dropout: {config.hidden_dropout}")
             logger.info(f"[+] \tattention_dropout: {config.attention_dropout}")
         else:
             logger.info("[+] " + config.__class__.__name__)

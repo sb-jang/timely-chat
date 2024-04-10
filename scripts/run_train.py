@@ -6,12 +6,13 @@ from datetime import datetime
 from functools import partial
 from logging import Logger
 from math import ceil, exp
-from typing import Tuple, Union
+from typing import Tuple
 
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
+import torch.nn.functional as F
 import wandb
 from bitsandbytes.optim import Adam8bit, GlobalOptimManager
 from dotenv import load_dotenv
@@ -28,7 +29,6 @@ from transformers import (
     AutoModelForCausalLM,
     AutoModelForSeq2SeqLM,
     AutoTokenizer,
-    T5Config,
     get_cosine_schedule_with_warmup,
 )
 from transformers.trainer_pt_utils import get_parameter_names
@@ -47,6 +47,13 @@ build_parser(parser, [ArtifactConfig, TrainConfig, ExperimentConfig, ExecutionCo
 logger: Logger = None
 
 LABEL_MASK_ID = 0
+
+SEQ2SEQ_MODELS = [
+    "microsoft/GODEL-v1_1-base-seq2seq",
+    "microsoft/GODEL-v1_1-large-seq2seq",
+    "allenai/cosmo-xl",
+    "ToddGoldfarb/Cadet-Tiny",
+]
 
 
 # ==================================================
@@ -96,17 +103,20 @@ def cleanup() -> None:
 # > Validation Function
 # ==================================================
 def validation(
-    model: Union[AutoModelForCausalLM, AutoModelForSeq2SeqLM], dataloader: DataLoader
+    model,
+    dataloader: DataLoader,
+    model_type: str = "causal",
 ) -> Tuple[float, float]:
     """
-    Validate the model with dev dataset.
+    Validate the model with val dataset.
 
     :param model: CausalLM or Seq2SeqLM model
-    :param dataloader: dataLoader for dev dataset
-    :return: tuple of (dev_loss, dev_ppl)
+    :param dataloader: dataLoader for val dataset
+    :param model_type: model type (causal or seq2seq)
+    :return: tuple of (val_loss, val_ppl)
     """
     rank = dist.get_rank()
-    dev_loss = torch.tensor([0.0], dtype=torch.float32).to(rank)
+    val_loss = torch.tensor([0.0], dtype=torch.float32).to(rank)
     num_non_mask = torch.tensor([0.0], dtype=torch.float32).to(rank)
 
     with torch.no_grad():
@@ -114,15 +124,21 @@ def validation(
             input_ids = input_ids.to(rank)
             label_ids = label_ids.to(rank)
 
-            loss = model(input_ids=input_ids, labels=label_ids).loss
+            if model_type == "causal":
+                num_non_mask += (label_ids != LABEL_MASK_ID).sum()
+                logits = model(input_ids=input_ids).logits
+                loss = F.cross_entropy(logits.transpose(1, 2), label_ids, ignore_index=LABEL_MASK_ID, reduction="sum")
+            else:
+                loss = model(input_ids=input_ids, labels=label_ids).loss
+            val_loss += loss
 
-            dev_loss += loss
-
-    dist.all_reduce(dev_loss, op=dist.ReduceOp.SUM)
+    dist.all_reduce(val_loss, op=dist.ReduceOp.SUM)
     dist.all_reduce(num_non_mask, op=dist.ReduceOp.SUM)
-    dev_ppl = torch.exp(dev_loss)
+    if model_type == "causal":
+        val_loss /= num_non_mask
+    val_ppl = torch.exp(val_loss)
 
-    return dev_loss.item(), dev_ppl.item()
+    return val_loss.item(), val_ppl.item()
 
 
 # ==================================================
@@ -147,15 +163,26 @@ def run(
     logger.info("[+] Initializing tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(artifact_config.pretrained_model)
     tokenizer.model_max_length = train_config.max_sequence_length
+    # set pad token to eos token if not exists
+    if not tokenizer.pad_token:
+        tokenizer.pad_token = tokenizer.eos_token
+    LABEL_MASK_ID = tokenizer.pad_token_id
+
+    # ==================================================
+    # > Determine model_type before dataset loading
+    # ==================================================
+    model_type = "seq2seq" if artifact_config.pretrained_model in SEQ2SEQ_MODELS else "causal"
 
     # ==================================================
     # > Dataset Loading
     # ==================================================
     # load train split
     logger.info("[+] Loading train/val datasets...")
-    with open("/home/seongbo/timely-chat/resources/data/train.json", "r") as f:
+    with open(artifact_config.train_dataset_path, "r") as f:
         train_dataset = json.load(f)
-    train_dataset = TimelyChatDataset(train_dataset, tokenizer, immediate_dropout=train_config.immediate_dropout)
+    train_dataset = TimelyChatDataset(
+        train_dataset, tokenizer, instantaneous_dropout=train_config.instantaneous_dropout, model_type=model_type
+    )
     train_datasampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
     train_dataloader = DataLoader(
         dataset=train_dataset,
@@ -168,19 +195,19 @@ def run(
     logger.info(f"[+] training data size: {len(train_dataset)}")
 
     # load validation split
-    with open("/home/seongbo/timely-chat/resources/data/valid.json", "r") as f:
-        dev_dataset = json.load(f)
-    dev_dataset = TimelyChatDataset(dev_dataset, tokenizer)
-    dev_datasampler = DistributedSampler(dev_dataset, shuffle=False, drop_last=False)
-    dev_dataloader = DataLoader(
-        dataset=dev_dataset,
-        batch_size=train_config.dev_batch_size,
+    with open(artifact_config.val_dataset_path, "r") as f:
+        val_dataset = json.load(f)
+    val_dataset = TimelyChatDataset(val_dataset, tokenizer, model_type=model_type)
+    val_datasampler = DistributedSampler(val_dataset, shuffle=False, drop_last=False)
+    val_dataloader = DataLoader(
+        dataset=val_dataset,
+        batch_size=train_config.val_batch_size,
         num_workers=execution_config.num_dataloader_workers,
         prefetch_factor=execution_config.dataloader_prefetch_factor,
-        sampler=dev_datasampler,
+        sampler=val_datasampler,
         pin_memory=True,
     )
-    logger.info(f"[+] validation data size: {len(dev_dataset)}")
+    logger.info(f"[+] validation data size: {len(val_dataset)}")
 
     total_train_batch_size = train_config.train_batch_size * train_config.gradient_accumulation_steps * world_size
     logger.info(f"[+] Total train batch size: {total_train_batch_size}")
@@ -195,20 +222,27 @@ def run(
     # override additional parameters
     # NOTE: use_cache unavailable if gradient checkpoint is enabled
     model_config.use_cache = False
-    if isinstance(model_config, T5Config):
+    if model_type == "seq2seq":
         model_config.dropout_rate = train_config.hidden_dropout
     else:
         model_config.attention_dropout = train_config.attention_dropout
-        model_config.hidden_dropout = train_config.hidden_dropout
 
     print_config(model_config)
 
     if artifact_config.pretrained_model_weight_path is None:
-        # model = AutoModelForCausalLM.from_pretrained(artifact_config.pretrained_model, config=model_config)
-        model = AutoModelForSeq2SeqLM.from_pretrained(artifact_config.pretrained_model, config=model_config)
+        if model_type == "seq2seq":
+            model = AutoModelForSeq2SeqLM.from_pretrained(artifact_config.pretrained_model, config=model_config)
+        else:
+            model = AutoModelForCausalLM.from_pretrained(artifact_config.pretrained_model, config=model_config)
     else:
-        # model = AutoModelForCausalLM.from_pretrained(artifact_config.pretrained_model_weight_path, config=model_config)
-        model = AutoModelForSeq2SeqLM.from_pretrained(artifact_config.pretrained_model_weight_path, config=model_config)
+        if model_type == "seq2seq":
+            model = AutoModelForSeq2SeqLM.from_pretrained(
+                artifact_config.pretrained_model_weight_path, config=model_config
+            )
+        else:
+            model = AutoModelForCausalLM.from_pretrained(
+                artifact_config.pretrained_model_weight_path, config=model_config
+            )
 
     # patch embedding layers
     if train_config.use_8bit_adam:
@@ -293,7 +327,11 @@ def run(
             label_ids = label_ids.to(rank)
 
             with autocast(enabled=use_amp, dtype=torch.bfloat16):
-                loss = model(input_ids=input_ids, labels=label_ids).loss
+                if model_type == "causal":
+                    output = model(input_ids=input_ids).logits
+                    loss = F.cross_entropy(output.transpose(1, 2), label_ids, ignore_index=LABEL_MASK_ID)
+                else:
+                    loss = model(input_ids=input_ids, labels=label_ids).loss
             loss /= train_config.gradient_accumulation_steps
             logging_loss += loss.detach()
 
@@ -360,14 +398,14 @@ def run(
             # validation
             if step % experiment_config.steps_per_valid == 0:
                 model.eval()
-                dev_loss, dev_ppl = validation(model, dev_dataloader)
+                val_loss, val_ppl = validation(model, val_dataloader, model_type)
 
                 logger.info("[+] Validation Results")
                 logger.info(
-                    f"\t[+] Epoch: {epoch}, Step: {step}/{total_steps}, Loss: {dev_loss:2.4f}, PPL: {dev_ppl:.4f}"
+                    f"\t[+] Epoch: {epoch}, Step: {step}/{total_steps}, Loss: {val_loss:2.4f}, PPL: {val_ppl:.4f}"
                 )
-                log_wandb_metric("valid/loss", dev_loss, step)
-                log_wandb_metric("valid/ppl", dev_ppl, step)
+                log_wandb_metric("valid/loss", val_loss, step)
+                log_wandb_metric("valid/ppl", val_ppl, step)
 
                 model.train()
 
@@ -376,12 +414,12 @@ def run(
                 if rank == 0:
                     model_weight_path = os.path.join(
                         experiment_config.weight_output_dir,
-                        artifact_config.pretrained_model.split("/")[-1],
                         experiment_config.run_name,
                         f"epoch-{epoch}-step-{step}",
                     )
                     logger.info(f"[+] Saving the model weights (Epoch: {epoch}, Step: {step}/{total_steps})...")
                     model.module.save_pretrained(model_weight_path, safe_serialization=False)
+                    tokenizer.save_pretrained(model_weight_path)
                 torch.cuda.empty_cache()
                 dist.barrier()
 
@@ -389,12 +427,12 @@ def run(
     # > Validation after Training
     # ==================================================
     model.eval()
-    dev_loss, dev_ppl = validation(model, dev_dataloader)
+    val_loss, val_ppl = validation(model, val_dataloader, model_type)
 
     logger.info("[+] Final Validation Result")
-    logger.info(f"\t[+] Loss: {dev_loss:2.4f}, PPL: {dev_ppl:.4f}")
-    log_wandb_metric("valid/loss", dev_loss, total_steps)
-    log_wandb_metric("valid/ppl", dev_ppl, total_steps)
+    logger.info(f"\t[+] Loss: {val_loss:2.4f}, PPL: {val_ppl:.4f}")
+    log_wandb_metric("valid/loss", val_loss, total_steps)
+    log_wandb_metric("valid/ppl", val_ppl, total_steps)
 
     # ==================================================
     # > Save the trained model
@@ -402,7 +440,6 @@ def run(
     if rank == 0:
         model_weight_path = os.path.join(
             experiment_config.weight_output_dir,
-            artifact_config.pretrained_model.split("/")[-1],
             experiment_config.run_name,
             "final",
         )
@@ -414,6 +451,7 @@ def run(
 
         logger.info("[+] Saving the final model's parameters...")
         model.module.save_pretrained(model_weight_path, safe_serialization=False)
+        tokenizer.save_pretrained(model_weight_path)
         logger.info("[+] Model saved!")
 
         logger.info("[+] FINISH TRAINING!")

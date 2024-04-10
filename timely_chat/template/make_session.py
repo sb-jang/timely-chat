@@ -1,9 +1,9 @@
 from datetime import datetime
 from typing import Any, Dict, List
 
-from timeliness.template.date import DateTemplate
-from timeliness.template.timestamp import TimestampTemplate
-from timeliness.template.utterance import UtteranceTemplate
+from timely_chat.template.date import DateTemplate
+from timely_chat.template.timestamp import TimestampTemplate
+from timely_chat.template.utterance import UtteranceTemplate
 
 
 def _make_session_with_template(instances: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
