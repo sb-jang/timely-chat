@@ -1,5 +1,4 @@
 results/
-sampled_data/
 logs/
 checkpoints/
 wandb/

@@ -2,8 +2,6 @@ tqdm
 numpy
 pandas
 tokenizers
-ujson
-mlflow
 transformers
 datasets
 sentencepiece
@@ -12,3 +10,5 @@ torch
 bitsandbytes
 matplotlib
 lexical_diversity
+wandb
+
