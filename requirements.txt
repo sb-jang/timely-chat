@@ -5,10 +5,10 @@ tokenizers
 transformers
 datasets
 sentencepiece
+tiktoken
 python-dotenv
 torch
 bitsandbytes
 matplotlib
 lexical_diversity
 wandb
-
