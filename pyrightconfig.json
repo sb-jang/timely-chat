@@ -1,5 +1,5 @@
 {
-  "include": ["timeliness"],
+  "include": ["timely_chat"],
   "venvPath": "venv",
   "reportUnknownVariableType": true,
   "reportUnknownMemberType": true,

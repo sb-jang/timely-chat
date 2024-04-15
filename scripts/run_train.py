@@ -6,13 +6,14 @@ from datetime import datetime
 from functools import partial
 from logging import Logger
 from math import ceil, exp
+from typing import Tuple
 
-import mlflow
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.nn.functional as F
+import wandb
 from bitsandbytes.optim import Adam8bit, GlobalOptimManager
 from dotenv import load_dotenv
 from torch.cuda.amp import GradScaler, autocast
@@ -23,69 +24,76 @@ from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, get_cosine_schedule_with_warmup
+from transformers import (
+    AutoConfig,
+    AutoModelForCausalLM,
+    AutoModelForSeq2SeqLM,
+    AutoTokenizer,
+    get_cosine_schedule_with_warmup,
+)
 from transformers.trainer_pt_utils import get_parameter_names
 
-from timeliness.config import ArtifactConfig, ExecutionConfig, ExperimentConfig, TrainConfig
-from timeliness.dataset import TimelinessDataset
-from timeliness.utils.argparser import build_parser, parse_args
-from timeliness.utils.logging import TQDM_FORMAT, create_logger
-from timeliness.utils.utils import log_mlflow_metric, log_mlflow_param, print_config, set_seed
+from timely_chat.config import ArtifactConfig, ExecutionConfig, ExperimentConfig, TrainConfig
+from timely_chat.dataset import TimelyChatDataset
+from timely_chat.utils.argparser import build_parser, parse_args
+from timely_chat.utils.logging import TQDM_FORMAT, create_logger
+from timely_chat.utils.utils import log_wandb_metric, log_wandb_param, print_config, set_seed
 
-# Load dotenv
+# Global setup
 load_dotenv()
 
-# Create and build parser
 parser = ArgumentParser()
 build_parser(parser, [ArtifactConfig, TrainConfig, ExperimentConfig, ExecutionConfig])
+logger: Logger = None
 
-# Constants
 LABEL_MASK_ID = 0
 
-# Logger, initialized inside main function
-logger: Logger = None
+SEQ2SEQ_MODELS = [
+    "microsoft/GODEL-v1_1-base-seq2seq",
+    "microsoft/GODEL-v1_1-large-seq2seq",
+    "allenai/cosmo-xl",
+    "ToddGoldfarb/Cadet-Tiny",
+]
 
 
 # ==================================================
 # > Setup and Cleanup Functions
 # ==================================================
-def setup(rank: int, world_size: int, experiment_config: ExperimentConfig, execution_config: ExecutionConfig):
-    """분산 학습을 위해 초기화 합니다."""
+def setup(rank: int, world_size: int, experiment_config: ExperimentConfig, execution_config: ExecutionConfig) -> None:
+    """Initialize for distributed training."""
     global logger
-    global log_mlflow_metric, log_mlflow_param, print_config
+    global log_wandb_metric, log_wandb_param, print_config
 
-    # setup distributed setup
+    # distributed setup
     os.environ["MASTER_ADDR"] = execution_config.ddp_master_address
     os.environ["MASTER_PORT"] = execution_config.ddp_master_port
 
-    # Intialize process group
+    # intialize process group
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
     torch.cuda.set_device(rank)
 
-    # Initlaize Logger
+    # initlaize logger
     log_level = logging.INFO if rank == 0 else logging.ERROR
     logger = create_logger(__name__, experiment_config.log_output_dir, log_level, rank)
 
+    # wandb setup
     if rank == 0:
-        # MLflow 관련 설정
-        mlflow.set_experiment(experiment_config.experiment_name)
-        mlflow_run = mlflow.start_run(run_name=experiment_config.run_name)
+        wandb.init(project=experiment_config.experiment_name)
+        logger.info(f"[+] Start tracking to WandB with project: {experiment_config.experiment_name}")
 
-        logger.info(f"[+] Start tracking to MLflow with Run ID: {mlflow_run.info.run_id}")
-
-    # 유틸리티 함수 로거들 Partial Patch
-    log_mlflow_metric = partial(log_mlflow_metric, logger=logger)
-    log_mlflow_param = partial(log_mlflow_param, logger=logger)
+    # partial patch for utility functions
+    log_wandb_metric = partial(log_wandb_metric, logger=logger)
+    log_wandb_param = partial(log_wandb_param, logger=logger)
     print_config = partial(print_config, logger=logger)
 
 
-def cleanup():
-    """학습 종료 후 리소스를 정리합니다."""
+def cleanup() -> None:
+    """Clean up the resources used during distributed training."""
     rank = dist.get_rank()
 
     if rank == 0:
-        mlflow.end_run()
+        wandb.finish()
 
     dist.barrier()
     dist.destroy_process_group()
@@ -94,38 +102,47 @@ def cleanup():
 # ==================================================
 # > Validation Function
 # ==================================================
-def validation(model: AutoModelForCausalLM, dataloader: DataLoader):
+def validation(
+    model,
+    dataloader: DataLoader,
+    model_type: str = "causal",
+) -> Tuple[float, float]:
     """
-    학습된 모델에 validation을 진행합니다.
+    Validate the model with val dataset.
 
-    :param model: 생성 모델
-    :param dataloader: dev 데이터셋 DataLoader
+    :param model: CausalLM or Seq2SeqLM model
+    :param dataloader: dataLoader for val dataset
+    :param model_type: model type (causal or seq2seq)
+    :return: tuple of (val_loss, val_ppl)
     """
     rank = dist.get_rank()
-    dev_loss = torch.tensor([0.0], dtype=torch.float32).to(rank)
+    val_loss = torch.tensor([0.0], dtype=torch.float32).to(rank)
     num_non_mask = torch.tensor([0.0], dtype=torch.float32).to(rank)
 
     with torch.no_grad():
         for input_ids, label_ids in tqdm(dataloader, disable=rank != 0):
             input_ids = input_ids.to(rank)
             label_ids = label_ids.to(rank)
-            num_non_mask += (label_ids != LABEL_MASK_ID).sum()
 
-            lm_logits = model(input_ids=input_ids).logits
+            if model_type == "causal":
+                num_non_mask += (label_ids != LABEL_MASK_ID).sum()
+                logits = model(input_ids=input_ids).logits
+                loss = F.cross_entropy(logits.transpose(1, 2), label_ids, ignore_index=LABEL_MASK_ID, reduction="sum")
+            else:
+                loss = model(input_ids=input_ids, labels=label_ids).loss
+            val_loss += loss
 
-            loss = F.cross_entropy(lm_logits.transpose(1, 2), label_ids, ignore_index=LABEL_MASK_ID, reduction="sum")
-            dev_loss += loss
-
-    dist.all_reduce(dev_loss, op=dist.ReduceOp.SUM)
+    dist.all_reduce(val_loss, op=dist.ReduceOp.SUM)
     dist.all_reduce(num_non_mask, op=dist.ReduceOp.SUM)
-    dev_loss /= num_non_mask
-    dev_ppl = torch.exp(dev_loss)
+    if model_type == "causal":
+        val_loss /= num_non_mask
+    val_ppl = torch.exp(val_loss)
 
-    return dev_loss.item(), dev_ppl.item()
+    return val_loss.item(), val_ppl.item()
 
 
 # ==================================================
-# > Train Function
+# > Training Function
 # ==================================================
 def run(
     rank: int,
@@ -135,30 +152,37 @@ def run(
     experiment_config: ExperimentConfig,
     execution_config: ExecutionConfig,
 ):
-    # Setup Experiment for Distributed Training
+    # setup and initialization
     setup(rank, world_size, experiment_config, execution_config)
-    # Show all prepared configurations
     print_config(artifact_config, train_config, experiment_config, execution_config)
-    # Set seed
     set_seed(train_config.random_seed)
 
     # ==================================================
-    # > Tokenizer Initialization
+    # > Tokenizer Setup
     # ==================================================
-    logger.info("[+] Tokenizer Initializing...")
+    logger.info("[+] Initializing tokenizer...")
     tokenizer = AutoTokenizer.from_pretrained(artifact_config.pretrained_model)
     tokenizer.model_max_length = train_config.max_sequence_length
+    # set pad token to eos token if not exists
+    if not tokenizer.pad_token:
+        tokenizer.pad_token = tokenizer.eos_token
+    LABEL_MASK_ID = tokenizer.pad_token_id
 
     # ==================================================
-    # > Dataset Initialization
+    # > Determine model_type before dataset loading
     # ==================================================
-    logger.info("[+] Load train/dev dataset...")
+    model_type = "seq2seq" if artifact_config.pretrained_model in SEQ2SEQ_MODELS else "causal"
 
-    # Load "Train" dataset
-    # TODO: Load dataset from HuggingFace Datasets
-    with open("./resources/data/train.jsonl", "r") as f:
-        train_dataset = [json.loads(line) for line in f]
-    train_dataset = TimelinessDataset(train_dataset, tokenizer)
+    # ==================================================
+    # > Dataset Loading
+    # ==================================================
+    # load train split
+    logger.info("[+] Loading train/val datasets...")
+    with open(artifact_config.train_dataset_path, "r") as f:
+        train_dataset = json.load(f)
+    train_dataset = TimelyChatDataset(
+        train_dataset, tokenizer, instantaneous_dropout=train_config.instantaneous_dropout, model_type=model_type
+    )
     train_datasampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
     train_dataloader = DataLoader(
         dataset=train_dataset,
@@ -168,50 +192,59 @@ def run(
         sampler=train_datasampler,
         pin_memory=True,
     )
-    logger.info(f"[+] The size of train dataset: {len(train_dataset)}")
+    logger.info(f"[+] training data size: {len(train_dataset)}")
 
-    # Load "Dev" dataset
-    # TODO: Load dataset from HuggingFace Datasets
-    with open("./resources/data/valid.jsonl", "r") as f:
-        dev_dataset = [json.loads(line) for line in f]
-    dev_dataset = TimelinessDataset(dev_dataset, tokenizer)
-    dev_datasampler = DistributedSampler(dev_dataset, shuffle=False, drop_last=False)
-    dev_dataloader = DataLoader(
-        dataset=dev_dataset,
-        batch_size=train_config.dev_batch_size,
+    # load validation split
+    with open(artifact_config.val_dataset_path, "r") as f:
+        val_dataset = json.load(f)
+    val_dataset = TimelyChatDataset(val_dataset, tokenizer, model_type=model_type)
+    val_datasampler = DistributedSampler(val_dataset, shuffle=False, drop_last=False)
+    val_dataloader = DataLoader(
+        dataset=val_dataset,
+        batch_size=train_config.val_batch_size,
         num_workers=execution_config.num_dataloader_workers,
         prefetch_factor=execution_config.dataloader_prefetch_factor,
-        sampler=dev_datasampler,
+        sampler=val_datasampler,
         pin_memory=True,
     )
-    logger.info(f"[+] The size of dev datatset: {len(dev_dataset)}")
+    logger.info(f"[+] validation data size: {len(val_dataset)}")
 
     total_train_batch_size = train_config.train_batch_size * train_config.gradient_accumulation_steps * world_size
     logger.info(f"[+] Total train batch size: {total_train_batch_size}")
-    log_mlflow_param("total_train_batch_size", total_train_batch_size)
+    log_wandb_param("total_train_batch_size", total_train_batch_size)
 
     # ==================================================
     # > Model Initialization
     # ==================================================
-    # Initialize CausalLM Model
-    logger.info("[+] Load model...")
-
+    logger.info("[+] Loading model...")
     model_config = AutoConfig.from_pretrained(artifact_config.pretrained_model)
 
-    # 추가 파라미터 Override
-    # gradient checkpoint 적용 시 attention 등 결과를 output으로 반환하는 use_cache 사용 불가
+    # override additional parameters
+    # NOTE: use_cache unavailable if gradient checkpoint is enabled
     model_config.use_cache = False
-    model_config.attention_dropout = train_config.attention_dropout
-    model_config.hidden_dropout = train_config.hidden_dropout
+    if model_type == "seq2seq":
+        model_config.dropout_rate = train_config.hidden_dropout
+    else:
+        model_config.attention_dropout = train_config.attention_dropout
 
     print_config(model_config)
 
     if artifact_config.pretrained_model_weight_path is None:
-        model = AutoModelForCausalLM.from_pretrained(artifact_config.pretrained_model, config=model_config)
+        if model_type == "seq2seq":
+            model = AutoModelForSeq2SeqLM.from_pretrained(artifact_config.pretrained_model, config=model_config)
+        else:
+            model = AutoModelForCausalLM.from_pretrained(artifact_config.pretrained_model, config=model_config)
     else:
-        model = AutoModelForCausalLM.from_pretrained(artifact_config.pretrained_model_weight_path, config=model_config)
+        if model_type == "seq2seq":
+            model = AutoModelForSeq2SeqLM.from_pretrained(
+                artifact_config.pretrained_model_weight_path, config=model_config
+            )
+        else:
+            model = AutoModelForCausalLM.from_pretrained(
+                artifact_config.pretrained_model_weight_path, config=model_config
+            )
 
-    # Patch Embedding Layers
+    # patch embedding layers
     if train_config.use_8bit_adam:
         manager = GlobalOptimManager.get_instance()
         for module in model.modules():
@@ -221,13 +254,13 @@ def run(
     model.gradient_checkpointing_enable()
     model.to(rank)
 
-    logger.info(f"[+] Upload model parameters to rank {rank}")
+    logger.info(f"[+] Uploading model parameters to rank {rank}...")
     model = DistributedDataParallel(model, device_ids=[rank], gradient_as_bucket_view=True)
 
     # ==================================================
-    # > Trainable Module's Initialization
+    # > Trainable Module Initialization
     # ==================================================
-    # Optimizer
+    # optimizer setup
     decay_parameters = get_parameter_names(model, [nn.LayerNorm])
     decay_parameters = [name for name in decay_parameters if "bias" not in name]
     optimizer_parameters = [
@@ -255,11 +288,11 @@ def run(
     warmup_steps = int(train_config.warmup_step_ratio * total_steps)
 
     logger.info(f"[+] Total training steps: {total_steps}")
-    logger.info(f"[+] Learning rate warmup steps: {warmup_steps}")
-    log_mlflow_param("total_steps", total_steps)
-    log_mlflow_param("warmup_steps", warmup_steps)
+    logger.info(f"[+] LR warmup steps: {warmup_steps}")
+    log_wandb_param("total_steps", total_steps)
+    log_wandb_param("warmup_steps", warmup_steps)
 
-    # Scheduler
+    # scheduler setup
     scheduler = get_cosine_schedule_with_warmup(
         optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps
     )
@@ -268,14 +301,12 @@ def run(
     use_amp = train_config.use_amp
     scaler = GradScaler(enabled=use_amp)
 
-    # 로깅에 필요한 변수 초기화
     logging_loss = torch.tensor(0.0, device=torch.device(rank))
 
     # ==================================================
-    # > Go Training
+    # > Train Loop
     # ==================================================
-    # Training Process
-    logger.info("[+] Start Training Process")
+    logger.info("[+] START TRAINING!")
     step, accumulated_steps = 0, 0
 
     for epoch in range(train_config.epoch):
@@ -296,38 +327,37 @@ def run(
             label_ids = label_ids.to(rank)
 
             with autocast(enabled=use_amp, dtype=torch.bfloat16):
-                output = model(input_ids=input_ids).logits
-            loss = F.cross_entropy(output.transpose(1, 2), label_ids, ignore_index=LABEL_MASK_ID)
+                if model_type == "causal":
+                    output = model(input_ids=input_ids).logits
+                    loss = F.cross_entropy(output.transpose(1, 2), label_ids, ignore_index=LABEL_MASK_ID)
+                else:
+                    loss = model(input_ids=input_ids, labels=label_ids).loss
             loss /= train_config.gradient_accumulation_steps
             logging_loss += loss.detach()
 
             scaler.scale(loss).backward()
 
-            # 아직 Gradient Accumulation 중인 경우
-            # 단, 가장 마지막 epoch의 마지막 배치에 대한 업데이트는 이루어지지 않음
+            # accumulating gradients
             if accumulated_steps < train_config.gradient_accumulation_steps:
                 continue
 
-            # Accumulation을 모두 시도하여 0으로 초기화 후 업데이트 진행
+            # accumulation done
             accumulated_steps = 0
             step += 1
 
-            # Unscale gradient first, then clipping
             scaler.unscale_(optimizer)
             clip_grad_norm_(model.parameters(), train_config.max_grad_norm)
 
-            # Update accumulated gradients
             scaler.step(optimizer)
             scaler.update()
             scheduler.step()
 
-            # Clear gradient
             optimizer.zero_grad(set_to_none=True)
 
             # ==================================================
-            # > Periodic Evaluation, Logging and CheckPointing
+            # > Validation & Logging & Checkpointing
             # ==================================================
-            # Logging the loss and Validate the model (for only rank 0)
+            # logging
             if step % experiment_config.steps_per_log == 0:
                 dist.all_reduce(logging_loss, op=dist.ReduceOp.SUM)
 
@@ -352,103 +382,98 @@ def run(
                     f"[+] Epoch: {epoch}, Step: {step}/{total_steps}, "
                     f"LR: {lr:.4e}, Loss: {mean_loss:2.4f}, PPL: {ppl:.4f}"
                 )
-                log_mlflow_metric("lr", lr, step)
-                log_mlflow_metric("train/loss", mean_loss, step)
-                log_mlflow_metric("train/ppl", ppl, step)
+                log_wandb_metric("lr", lr, step)
+                log_wandb_metric("train/loss", mean_loss, step)
+                log_wandb_metric("train/ppl", ppl, step)
 
-                # 평균 GPU 사용량
+                # average GPU usage
                 usage = usage.cpu()
-                log_mlflow_metric("gpu_allocated", usage[0], step)
-                log_mlflow_metric("gpu_max_allocated", usage[1], step)
-                log_mlflow_metric("gpu_reserved", usage[2], step)
-                log_mlflow_metric("gpu_max_reserved", usage[3], step)
+                log_wandb_metric("gpu_allocated", usage[0], step)
+                log_wandb_metric("gpu_max_allocated", usage[1], step)
+                log_wandb_metric("gpu_reserved", usage[2], step)
+                log_wandb_metric("gpu_max_reserved", usage[3], step)
 
                 logging_loss = torch.tensor(0.0, device=torch.device(rank))
 
-            # Evaluation
+            # validation
             if step % experiment_config.steps_per_valid == 0:
                 model.eval()
-                dev_loss, dev_ppl = validation(model, dev_dataloader)
+                val_loss, val_ppl = validation(model, val_dataloader, model_type)
 
-                logger.info("[+] Validation Result")
+                logger.info("[+] Validation Results")
                 logger.info(
-                    f"\t[+] Epoch: {epoch}, Step: {step}/{total_steps}, Loss: {dev_loss:2.4f}, PPL: {dev_ppl:.4f}"
+                    f"\t[+] Epoch: {epoch}, Step: {step}/{total_steps}, Loss: {val_loss:2.4f}, PPL: {val_ppl:.4f}"
                 )
-                log_mlflow_metric("valid/loss", dev_loss, step)
-                log_mlflow_metric("valid/ppl", dev_ppl, step)
+                log_wandb_metric("valid/loss", val_loss, step)
+                log_wandb_metric("valid/ppl", val_ppl, step)
 
                 model.train()
 
-            # Model checkpointing
+            # model checkpointing
             if step % experiment_config.steps_per_model_save == 0:
                 if rank == 0:
                     model_weight_path = os.path.join(
                         experiment_config.weight_output_dir,
-                        f"{experiment_config.run_name}-epoch-{epoch}-step-{step}",
+                        experiment_config.run_name,
+                        f"epoch-{epoch}-step-{step}",
                     )
-                    logger.info(f"[+] Save the model weight (Epoch: {epoch}, Step: {step}/{total_steps})")
-                    model.module.save_pretrained(model_weight_path)
+                    logger.info(f"[+] Saving the model weights (Epoch: {epoch}, Step: {step}/{total_steps})...")
+                    model.module.save_pretrained(model_weight_path, safe_serialization=False)
+                    tokenizer.save_pretrained(model_weight_path)
                 torch.cuda.empty_cache()
                 dist.barrier()
 
     # ==================================================
-    # > Final Evaluation
+    # > Validation after Training
     # ==================================================
-    # Validation for the final model
     model.eval()
-    dev_loss, dev_ppl = validation(model, dev_dataloader)
+    val_loss, val_ppl = validation(model, val_dataloader, model_type)
 
     logger.info("[+] Final Validation Result")
-    logger.info(f"\t[+] Loss: {dev_loss:2.4f}, PPL: {dev_ppl:.4f}")
-    log_mlflow_metric("valid/loss", dev_loss, total_steps)
-    log_mlflow_metric("valid/ppl", dev_ppl, total_steps)
+    logger.info(f"\t[+] Loss: {val_loss:2.4f}, PPL: {val_ppl:.4f}")
+    log_wandb_metric("valid/loss", val_loss, total_steps)
+    log_wandb_metric("valid/ppl", val_ppl, total_steps)
 
     # ==================================================
-    # > Save trained model
+    # > Save the trained model
     # ==================================================
     if rank == 0:
-        model_weight_path = os.path.join(experiment_config.weight_output_dir, f"{experiment_config.run_name}-final")
+        model_weight_path = os.path.join(
+            experiment_config.weight_output_dir,
+            experiment_config.run_name,
+            "final",
+        )
 
-        # 파일이 중복될 경우, 다른 이름으로 저장
+        # if already exists, save with temporary name
         if os.path.exists(model_weight_path):
             model_weight_path += f"-{datetime.now().strftime('%f')}"
             logger.warning(f"[-] Weight file already exists. Try to save with another name ({model_weight_path})")
 
-        logger.info("[+] Saving the final model's parameters")
-        model.module.save_pretrained(model_weight_path)
-        logger.info("[+] Model is saved")
+        logger.info("[+] Saving the final model's parameters...")
+        model.module.save_pretrained(model_weight_path, safe_serialization=False)
+        tokenizer.save_pretrained(model_weight_path)
+        logger.info("[+] Model saved!")
 
-        logger.info("[+] Training Complete!")
+        logger.info("[+] FINISH TRAINING!")
 
     cleanup()
 
 
 def main():
-    # 실행에 필요한 설정값을 인자로부터 불러옴
+    # load configs
     artifact_config = parse_args(parser, ArtifactConfig)
     train_config = parse_args(parser, TrainConfig)
     experiment_config = parse_args(parser, ExperimentConfig)
     execution_config = parse_args(parser, ExecutionConfig)
 
-    # 모델 체크포인트는 서브 디렉토리에 저장
     experiment_config.weight_output_dir = os.path.join(experiment_config.weight_output_dir, experiment_config.run_name)
 
-    # 필요한 폴더 생성
     os.makedirs(experiment_config.weight_output_dir, exist_ok=True)
     os.makedirs(experiment_config.log_output_dir, exist_ok=True)
 
     assert torch.cuda.is_available()
 
-    # 로깅에 필요한 MLflow 설정이 되어 있는지 검증
-    if any(
-        [
-            env not in os.environ
-            for env in ["MLFLOW_TRACKING_URI", "MLFLOW_TRACKING_USERNAME", "MLFLOW_TRACKING_PASSWORD"]
-        ]
-    ):
-        raise ValueError("MLFlow tracking URI, username and password must be set.")
-
-    # 학습 시작
+    # start training
     print("Spawning processes for training...")
     world_size = torch.cuda.device_count()
     mp.spawn(
