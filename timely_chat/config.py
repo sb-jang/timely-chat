@@ -51,7 +51,7 @@ class ExperimentConfig:
     # 실험 중 출력되는 파일들이 작성되는 주기 설정
     steps_per_log: int = field(10, help="학습 로그 출력 빈도")
     steps_per_valid: int = field(100, help="validation을 시행할 빈도")
-    steps_per_model_save: int = field(500, help="모델 체크포인트를 저장할 빈도")
+    steps_per_model_save: int = field(300, help="모델 체크포인트를 저장할 빈도")
 
 
 @dataclass
