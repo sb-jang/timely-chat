@@ -39,6 +39,10 @@ from timely_chat.utils.argparser import build_parser, parse_args
 from timely_chat.utils.logging import TQDM_FORMAT, create_logger
 from timely_chat.utils.utils import log_wandb_metric, log_wandb_param, print_config, set_seed
 
+#os.environ["WANDB_API_KEY"] = "057675b24cb3fe66c357ae4afcd1dcec1614bf28"
+#os.environ["WANDB_MODE"] = "offline"
+
+
 # Global setup
 load_dotenv()
 
@@ -132,7 +136,7 @@ def validation(
                 logits = model(input_ids=input_ids).logits
                 loss = F.cross_entropy(logits.transpose(1, 2), label_ids, ignore_index=LABEL_MASK_ID, reduction="sum")
             else:
-                loss = model(input_ids=input_ids, attention_ids = attn_ids, labels=label_ids).loss
+                loss = model(input_ids=input_ids, attention_mask = attn_ids, labels=label_ids).loss
             val_loss += loss
 
     dist.all_reduce(val_loss, op=dist.ReduceOp.SUM)
@@ -140,7 +144,7 @@ def validation(
     if model_type == "causal":
         val_loss /= num_non_mask
     
-    val_mean_loss = val_loss/len(dataloader)
+    val_mean_loss = val_loss # why not divide by the number of step in validation
     val_ppl = torch.exp(val_loss)
     
     return val_loss.item(), val_ppl.item()
@@ -202,7 +206,6 @@ def run(
         pin_memory=True,
     )
     logger.info(f"[+] training data size: {len(train_dataset)}")
-
     if "gapchat" in artifact_config.val_dataset_path:
         val_dataset = GapChatDatasetSPK(
         artifact_config.val_dataset_path, tokenizer, model_type=model_type
@@ -222,7 +225,6 @@ def run(
         pin_memory=True,
     )
     logger.info(f"[+] validation data size: {len(val_dataset)}")
-
     total_train_batch_size = train_config.train_batch_size * train_config.gradient_accumulation_steps * world_size
     logger.info(f"[+] Total train batch size: {total_train_batch_size}")
     log_wandb_param("total_train_batch_size", total_train_batch_size)

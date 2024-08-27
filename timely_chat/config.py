@@ -28,7 +28,7 @@ class TrainConfig:
     random_seed: int = field(0, help="Random Seed")
     use_amp: bool = field(help="Automatic mixed precision 사용 여부")
     use_8bit_adam: bool = field(help="8Bit Adam 사용 여부")
-    max_sequence_length: int = field(512, help="Max Sequence Length")
+    max_sequence_length: int = field(1024, help="Max Sequence Length")
     adam_beta1: float = field(0.9, help="Adam optimizer beta1")
     adam_beta2: float = field(0.999, help="Adam optimizer beta2")
     adam_eps: float = field(1e-8, help="Adam optimizer epsilon")

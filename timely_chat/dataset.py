@@ -229,7 +229,7 @@ class GapChatDatasetSPK(Dataset):
         self._set_up()
         self.instantaneous_dropout = instantaneous_dropout
         self.model_type = model_type
-        self.data_type = None
+        self.data_type = data_path.split('/')[-1][:-4]
         
     def _set_up(self):
         #data_lst = []
@@ -295,11 +295,11 @@ class GapChatDatasetSPK(Dataset):
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
         instance = self.supervised_finetuning_instances[index]
         if self.data_type == 'time':
-            context = f"Text:{instance['text']}\nProgess:{instance['Progress']}\nlabel:{self.speaker_token} speaker_2: {self.utterance_token} "
+            context = f"Text:{instance['text']}\nProgress:{instance['Progress']}\nlabel:{self.speaker_token} speaker_2: {self.utterance_token} "
         elif self.data_type == "schedule":
             context = f"Text:{instance['text']}\nSchedule:{instance['Schedule']}\nlabel:{self.speaker_token} speaker_2: {self.utterance_token} "
         else:
-            context = f"Text:{instance['text']}\nProgess:{instance['Progress']}\nSchedule:{instance['Schedule']}\nlabel:{self.speaker_token} speaker_2: {self.utterance_token} "
+            context = f"Text:{instance['text']}\nProgress:{instance['Progress']}\nSchedule:{instance['Schedule']}\nlabel:{self.speaker_token} speaker_2: {self.utterance_token} "
         
         response = instance["labels"].split("<utt> ")[1]
         
