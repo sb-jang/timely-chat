@@ -28,7 +28,7 @@ class TrainConfig:
     random_seed: int = field(0, help="Random Seed")
     use_amp: bool = field(help="Automatic mixed precision 사용 여부")
     use_8bit_adam: bool = field(help="8Bit Adam 사용 여부")
-    max_sequence_length: int = field(1024, help="Max Sequence Length")
+    max_sequence_length: int = field(512, help="Max Sequence Length")
     adam_beta1: float = field(0.9, help="Adam optimizer beta1")
     adam_beta2: float = field(0.999, help="Adam optimizer beta2")
     adam_eps: float = field(1e-8, help="Adam optimizer epsilon")
@@ -51,7 +51,7 @@ class ExperimentConfig:
     # 실험 중 출력되는 파일들이 작성되는 주기 설정
     steps_per_log: int = field(10, help="학습 로그 출력 빈도")
     steps_per_valid: int = field(100, help="validation을 시행할 빈도")
-    steps_per_model_save: int = field(300, help="모델 체크포인트를 저장할 빈도")
+    steps_per_model_save: int = field(500, help="모델 체크포인트를 저장할 빈도")
 
 
 @dataclass
