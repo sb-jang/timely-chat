@@ -3,7 +3,7 @@ import asyncio
 import openai
 from typing import Text
 import re
-
+import argparse
 
 openai.api_key =""
 model_name = "gpt-4o-mini"
@@ -101,9 +101,9 @@ def get_chatgpt_response(content: Text, task: Text):
         """ + content
 
     else:
-        print("wrong task name, select from [events, duration]")
+        print("wrong task name, select from _get_argsduration]")
         return
-    log_file_path = f"./data/new_data/train/{task}_log.jsonl"
+    log_file_path = f"./data/new_data/{args.split}/{task}_log.jsonl"
     log_file = open(log_file_path, "a+", encoding='utf-8')
 
     messages = {
@@ -143,19 +143,20 @@ def get_chatgpt_response(content: Text, task: Text):
         elif model_name == "gpt-4o-mini":
             matches = re.findall(r'\{[^{}]*\}', raw_text)
             raw_text = matches[0]
+        # if fail to load JSON format, return "Fail"
         try:
             return json.loads(raw_text)
         except:
             return "Fail"
-        
+    
     if "Answer:" in raw_text:
         index = raw_text.find('speaker_1')
         if index != -1:
             raw_text = raw_text[index:]
-    # print(response)
+
     if raw_text == "":
-        raw_text = "speaker_1: Not mentioned.\nspeaker_2: Not mentioned"
-    if "\n" in raw_text: # it means that data has speaker_1, speaker_2
+        raw_text = "speaker_1: Not mentioned.\nspeaker_2: Not mentioned."
+    if "\n" in raw_text: # it means that data has speaker_1 and speaker_2
         extracted_events = raw_text.split("\n")
     else:
         if ("speaker_1" in raw_text) and ("speaker_2" in raw_text):
@@ -164,9 +165,6 @@ def get_chatgpt_response(content: Text, task: Text):
         else:
             extracted_events = raw_text
         print(extracted_events)
-    #else:
-    #    extracted_events = raw_text.split("speaker_2: ")
-    #    extracted_events[1] = "speaker_2: " + extracted_events[1]
     return extracted_events
 
 def read_conversations(data_path: Text):
@@ -188,7 +186,7 @@ def read_log_data(data_path: Text):
     with open(data_path, 'r') as file:
         for line in file:
             stripped_line = line.strip()
-            if stripped_line:  # 공백이나 빈 줄이 아닌 경우에만 파싱
+            if stripped_line:  # parsing if not white space or empty line
                 try:
                     parsed_data = json.loads(stripped_line)
                     data.append(parsed_data)
@@ -222,19 +220,12 @@ def read_events(data_path: Text):
     return events
 
 def extract_events(data_path: Text):
-    events_file = open(r"./new_data/train/extracted_events.json", 'a+', encoding='utf-8')
+    events_file = open(f"./new_data/{args.split}/extracted_events.json", 'a+', encoding='utf-8')
     events_list = []
     conversations = read_conversations(data_path)
     for conversation in conversations:
         print(conversation)
         extracted_events = get_chatgpt_response(conversation, task="events")
-        #for idx, event in enumerate(extracted_events):
-        #    if event == '':
-        #        extracted_events[idx] = "speaker_{}: Not mentioned.".format(idx+1)
-        #events_list.append({
-        #    extracted_events[0].split(":")[0] : extracted_events[0].split(":")[1],
-        #    extracted_events[1].split(":")[0] : extracted_events[1].split(":")[1],
-        #})
         print(extracted_events)
         speaker_1_event = "Not mentioned."
         speaker_2_event = "Not mentioned."
@@ -251,7 +242,7 @@ def extract_events(data_path: Text):
     
 
 def get_events_from_logs(log_path: Text):
-    events_file = open(r"./new_data/extracted_events", 'a+', encoding='utf-8')
+    events_file = open(f"./new_data/{args.split}/extracted_events", 'a+', encoding='utf-8')
     events_list = []
     log_data = open(log_path, 'r', encoding='utf-8')
     counter = 0
@@ -279,7 +270,7 @@ def get_events_from_logs(log_path: Text):
 
 
 def estimate_time(event_path: Text):
-    time_tagged_file = open(r"./new_data/train/time_tag.jsonl", 'a+', encoding='utf-8')
+    time_tagged_file = open(f"./new_data/{args.split}/time_tag.jsonl", 'a+', encoding='utf-8')
     tagged_list = []
     counter = 500
     events = read_events(event_path)
@@ -302,18 +293,17 @@ def estimate_time(event_path: Text):
                 for part in time.split(":")[1].split(","):
                     if "->" in part:
                         time_tag[time.split(":")[0].replace(' ', '').lower()].append(part.split("->")[1].strip())
-        ### 
         tagged_list.append(time_tag)
         counter += 1
         time_tagged_file.write(json.dumps(time_tag) + "\n")
 
 
 def get_schedule(event_path: Text):
-    event_schedule_file = open(r"./new_data/train/schedule.jsonl", 'a+', encoding='utf-8')
+    event_schedule_file = open(f"./new_data/{args.split}/schedule.jsonl", 'a+', encoding='utf-8')
     events = read_events(event_path)
     counter = 0
     print(len(events))
-    for event in events: #[counter:]
+    for event in events:
         print(json.dumps(event, indent=4))
         schedule = {
             "speaker_1": [],
@@ -373,22 +363,20 @@ def get_evaluation_conversation(save_path):
 
 
 if __name__ == "__main__":
-    read_conversations(r"./gap_chat/train/merge.json")
-    data_path = r"./gap_chat/train/merge.json"
-    extract_events(data_path)
-
-
-    #log_path = r"./new_data/events_log_gpt_4_mini.jsonl"
-    #get_events_from_logs(log_path)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--split', type=str, default="train", choices=['train','eval'])
+    args = parser.parse_args()
     
-    events_path = r"./new_data/train/extracted_events.json"
-    estimate_time(events_path)
+    data_path = f"./gap_chat/{args.split}/merge.json" # path to gap_chat data
+    events_path = f"./new_data/{args.split}/extracted_events.json" # path to events
 
-    events_path = r"./new_data/train/extracted_events.json"
+    read_conversations(data_path)
+    extract_events(data_path)
+    #log_path = f"./new_data/{args.split}/events_log.jsonl"
+    #get_events_from_logs(log_path)
+    estimate_time(events_path)
     get_schedule(events_path)
 
-
     # self_chat_gpt_path = r"./new_data/self_chat_gpt.jsonl"
-
     # for index in range(15):
     #     get_evaluation_conversation(self_chat_gpt_path)

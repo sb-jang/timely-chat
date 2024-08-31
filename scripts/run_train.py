@@ -34,14 +34,10 @@ from transformers import (
 from transformers.trainer_pt_utils import get_parameter_names
 
 from timely_chat.config import ArtifactConfig, ExecutionConfig, ExperimentConfig, TrainConfig
-from timely_chat.dataset import TimelyChatDataset, GapChatDataset, GapChatDatasetSPK
+from timely_chat.dataset import TimelyChatDataset, GapChatDataset
 from timely_chat.utils.argparser import build_parser, parse_args
 from timely_chat.utils.logging import TQDM_FORMAT, create_logger
 from timely_chat.utils.utils import log_wandb_metric, log_wandb_param, print_config, set_seed
-
-#os.environ["WANDB_API_KEY"] = "057675b24cb3fe66c357ae4afcd1dcec1614bf28"
-#os.environ["WANDB_MODE"] = "offline"
-
 
 # Global setup
 load_dotenv()
@@ -126,17 +122,17 @@ def validation(
     num_non_mask = torch.tensor([0.0], dtype=torch.float32).to(rank)
 
     with torch.no_grad():
-        for input_ids, attn_ids, label_ids in tqdm(dataloader, disable=rank != 0):
+        for input_ids, attention_mask, label_ids in tqdm(dataloader, disable=rank != 0):
             input_ids = input_ids.to(rank)
             label_ids = label_ids.to(rank)
-            attn_ids = attn_ids.to(rank)
+            attention_mask = attention_mask.to(rank)
 
             if model_type == "causal":
                 num_non_mask += (label_ids != LABEL_MASK_ID).sum()
-                logits = model(input_ids=input_ids).logits
+                logits = model(input_ids=input_ids, attention_mask=attention_mask).logits
                 loss = F.cross_entropy(logits.transpose(1, 2), label_ids, ignore_index=LABEL_MASK_ID, reduction="sum")
             else:
-                loss = model(input_ids=input_ids, attention_mask = attn_ids, labels=label_ids).loss
+                loss = model(input_ids=input_ids, attention_mask = attention_mask, labels=label_ids).loss
             val_loss += loss
 
     dist.all_reduce(val_loss, op=dist.ReduceOp.SUM)
@@ -144,10 +140,10 @@ def validation(
     if model_type == "causal":
         val_loss /= num_non_mask
     
-    val_mean_loss = val_loss # why not divide by the number of step in validation
-    val_ppl = torch.exp(val_loss)
+    val_mean_loss = val_loss/len(dataloader)
+    val_ppl = torch.exp(val_mean_loss)
     
-    return val_loss.item(), val_ppl.item()
+    return val_mean_loss.item(), val_ppl.item()
 
 
 # ==================================================
@@ -188,9 +184,12 @@ def run(
     # load train split
     logger.info("[+] Loading train/val datasets...")
     if "gapchat" in artifact_config.train_dataset_path:
-        train_dataset = GapChatDatasetSPK(
-        artifact_config.train_dataset_path, tokenizer, instantaneous_dropout=train_config.instantaneous_dropout, model_type=model_type
-    )
+        from_hf = False
+        split = None
+        if "seongbo-research" in artifact_config.train_dataset_path:
+            from_hf = True
+            split = "train"
+        train_dataset = GapChatDataset(data_source=artifact_config.train_dataset_path, tokenizer=tokenizer, instantaneous_dropout=train_config.instantaneous_dropout, model_type=model_type, from_hf=from_hf, split=split)
     else:    
         with open(artifact_config.train_dataset_path, "r") as f:
            train_dataset = json.load(f)
@@ -207,8 +206,13 @@ def run(
     )
     logger.info(f"[+] training data size: {len(train_dataset)}")
     if "gapchat" in artifact_config.val_dataset_path:
-        val_dataset = GapChatDatasetSPK(
-        artifact_config.val_dataset_path, tokenizer, model_type=model_type
+        from_hf = False
+        split = None
+        if "seongbo-research" in artifact_config.val_dataset_path:
+            from_hf = True
+            split = "valid"
+        val_dataset = GapChatDataset(
+        data_source=artifact_config.val_dataset_path, tokenizer=tokenizer, model_type=model_type,from_hf=from_hf,split=split
     )
     else:    
         with open(artifact_config.val_dataset_path, "r") as f:
@@ -329,7 +333,7 @@ def run(
         train_datasampler.set_epoch(epoch)
         model.train()
 
-        for input_ids, attn_ids, label_ids in tqdm(
+        for input_ids, attention_mask, label_ids in tqdm(
             train_dataloader,
             desc=f"[Epoch: {epoch}]",
             total=len(train_dataloader),
@@ -341,14 +345,14 @@ def run(
 
             input_ids = input_ids.to(rank)
             label_ids = label_ids.to(rank)
-            attn_ids = attn_ids.to(rank)
+            attention_mask = attention_mask.to(rank)
 
             with autocast(enabled=use_amp, dtype=torch.bfloat16):
                 if model_type == "causal":
-                    output = model(input_ids=input_ids).logits
+                    output = model(input_ids=input_ids, attention_mask=attention_mask).logits
                     loss = F.cross_entropy(output.transpose(1, 2), label_ids, ignore_index=LABEL_MASK_ID)
                 else:
-                    loss = model(input_ids=input_ids, attention_mask=attn_ids, labels=label_ids).loss
+                    loss = model(input_ids=input_ids, attention_mask=attention_mask, labels=label_ids).loss
             loss /= train_config.gradient_accumulation_steps
             logging_loss += loss.detach()
 
