@@ -1,11 +1,12 @@
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
+import os
 import torch
 from torch.utils.data import Dataset
 from transformers import AutoTokenizer
 from datasets import load_dataset
-
+from typing import Dict, List, Tuple
 class TimelyChatDataset(Dataset):
     def __init__(
         self,
@@ -65,15 +66,15 @@ class TimelyChatDataset(Dataset):
         response = instance["timely_response"]
 
         if self.model_type == "seq2seq":
-            input_ids = self.tokenizer(context, padding="max_length", truncation=True)["input_ids"]
-            attention_mask = self.tokenizer(context, padding="max_length", truncation=True)["attention_mask"]
+            tokenized_inputs = self.tokenizer(context, padding="max_length", truncation=True)
+            input_ids = tokenized_inputs["input_ids"]
+            attention_mask = tokenized_inputs["attention_mask"]
             label_ids = self.tokenizer(response, padding="max_length", truncation=True)["input_ids"]
         else:
             context += response
-            input_ids = self.tokenizer(context, padding="max_length", truncation=True)["input_ids"]
-            attention_mask = self.tokenizer(context, padding="max_length", truncation=True)["attention_mask"]
-            label_ids = input_ids
-
+            tokenized_inputs = self.tokenizer(context, padding="max_length", truncation=True)
+            input_ids = tokenized_inputs["input_ids"]
+            attention_mask = tokenized_inputs["attention_mask"]
             input_ids = input_ids[:-1]
             attention_mask = attention_mask[:-1]
             label_ids = label_ids[1:]
@@ -97,6 +98,7 @@ class GapChatDataset(Dataset):
         utterance_token: str = "<utt>",
         instantaneous_dropout: float = 0.0,
         model_type: str = "seq2seq",
+        time_unaware: bool = False,
     ):
         """
         Dataset for supervised finetuning
@@ -116,6 +118,7 @@ class GapChatDataset(Dataset):
         self.instantaneous_dropout = instantaneous_dropout
         self.model_type = model_type
         self.supervised_finetuning_instances = None
+        self.time_unaware = time_unaware
         if from_hf:
             self.supervised_finetuning_instances = load_dataset(data_source,split=split)
             self.data_type = data_source[25:]
@@ -127,73 +130,106 @@ class GapChatDataset(Dataset):
                 raise ValueError(f"Unsupported file type:{file_type}")
 
         
-    def _set_up(self):
+    def _set_up(self) -> List[Dict[str, str]]:
         data_lst = []
         text = ""
-        label =""
-        
+        label = ""
+        previous_session = ""
+        even_previous_session = ""
+        odd_previous_session = ""
+        prefix = ""
+        first_turn = False
+        episode_cnt = 0
         # set data type
-        if self.data_path.split('/')[-1] == 'time.txt':
-            self.data_type = 'time'
-        elif self.data_path.split('/')[-1] == 'schedule.txt':
-            self.data_type = 'schedule'
-        else:
-            self.data_type = 'both'
-    
+        filename = os.path.basename(self.data_path)
+        self.data_type = filename.split(".")[0]
+        if self.time_unaware:
+            self.data_type = "time_unaware"
         with open(self.data_path,'r',encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
                 text += label
                 # extract text in the line
-                if line.split('\\n')[0].split("text:")[1] == "":
-                    text += ""
-                else:
-                    text += f"{self.speaker_token} speaker_1: {self.utterance_token} {line.split('\\n')[0].split("text:")[1]} "
+                gap = line.split('\\n')[-1].split(" Gap:")[1].split('\t')[0]
+                content = line.split('\\n')[0].split("text:")[1]
+                prefix = ""
+                if self.data_type == "time_unaware" and gap != 'No Gap' and first_turn:
+                    prefix = f"{self.time_token} {gap} later "
+                    first_turn = False
+                if content != "":
+                    text += f"{self.speaker_token} speaker_1: {prefix}{self.utterance_token} {content} "
+                    prefix = ""
+                # extract the label in the line
+                label = f"{self.speaker_token} speaker_2: {prefix}{self.utterance_token} {line.split('labels:')[1].split('\t')[0]} "
+                            
                 # extract progress in the line
-                if self.data_type!='schedule':
+                if self.data_type =='time' or self.data_type == 'both':
                     progress = line.split('\\n')[1].split(" Progress:")[1].split('\t')[0]
                 # extract schedule in the line
-                if self.data_type!='time':
-                    if self.data_type == 'schedule':
-                        schedule = line.split('\\n')[1].split(" Schedule:")[1].split('\t')[0]
-                    else:
-                        schedule = line.split('\\n')[2].split(" Schedule:")[1].split('\t')[0]
+                if self.data_type == "schedule":
+                    schedule = line.split('\\n')[1].split(" Schedule:")[1].split('\t')[0]
+                elif self.data_type == "both":
+                    schedule = line.split('\\n')[2].split(" Schedule:")[1].split('\t')[0]
 
-                # extract the label in the line
-                label = f"{self.speaker_token} speaker_2: {self.utterance_token} {line.split('labels:')[1].split('\t')[0]} "
-                
                 # data formatting following data type
                 if self.data_type == 'time':
                     data = {"text":text.strip(),
-                        "Progress":f"{self.speaker_token} speaker_1: {progress.strip()}",
+                        "Progress":f"{progress.strip()}",
                         "labels":label.strip(),
                         }
                 elif self.data_type == 'schedule':
                     data = {"text":text.strip(),
-                            "Schedule":f"{self.speaker_token} speaker_1: {schedule.strip()}",
+                            "Schedule":f"{schedule.strip()}",
                             "labels":label.strip(),
                             }
-                else:
+                elif self.data_type == 'both':
                     data = {"text":text.strip(),
-                            "Progress":f"{self.speaker_token} speaker_1: {progress.strip()}",
-                            "Schedule":f"{self.speaker_token} speaker_1: {schedule.strip()}",
+                            "Progress":f"{progress.strip()}",
+                            "Schedule":f"{schedule.strip()}",
                             "labels":label.strip(),
                             }
-                
+                elif self.data_type == 'time_unaware':
+                    if episode_cnt%2 == 0:
+                        previous_session = even_previous_session
+                    else:
+                        previous_session = odd_previous_session
+                    data = {"text": text.strip(),
+                            "previous_session" : previous_session,
+                            "gap" : gap,
+                            "labels" : label
+                            }
                 data_lst.append(data)
+                
                 if "episode_done" in line:
+                    if self.data_type == "time_unaware":
+                        previous_session = ""
+                        first_turn = True
+                        if "final_session" not in line:
+                            text += label
+                            utterance_lst = text.strip().split(f"{self.speaker_token} ")[1:]
+                            for utterance in utterance_lst[-5:]:
+                                previous_session += f"{self.speaker_token} {utterance}"
+                            previous_session += " "
+                        if episode_cnt%2 == 0:
+                            even_previous_session = previous_session
+                        else:
+                            odd_previous_session = previous_session
                     text = ""
                     label = ""
+                    episode_cnt += 1
         return data_lst
     
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
         instance = self.supervised_finetuning_instances[index]
-        if (self.data_type == 'time') or (self.data_type == 'progress'):
-            context = f"Text:{instance['text']}\nProgress:{instance['Progress']}\nlabel:{self.speaker_token} speaker_2: {self.utterance_token} "
+        if self.data_type == "time_unaware":
+            suffix = instance["labels"].split("<utt> ")[0]
+            context = f"Text:{instance['previous_session']}{instance['text']}\nLabel:{suffix}{self.utterance_token} "
+        elif (self.data_type == 'time') or (self.data_type == 'progress'):
+            context = f"Text:{instance['text']}\nProgress:{instance['Progress']}\nLabel:{self.speaker_token} speaker_2: {self.utterance_token} "
         elif self.data_type == "schedule":
-            context = f"Text:{instance['text']}\nSchedule:{instance['Schedule']}\nlabel:{self.speaker_token} speaker_2: {self.utterance_token} "
-        else:
-            context = f"Text:{instance['text']}\nProgress:{instance['Progress']}\nSchedule:{instance['Schedule']}\nlabel:{self.speaker_token} speaker_2: {self.utterance_token} "
+            context = f"Text:{instance['text']}\nSchedule:{instance['Schedule']}\nLabel:{self.speaker_token} speaker_2: {self.utterance_token} "
+        elif self.data_type == "both":
+            context = f"Text:{instance['text']}\nProgress:{instance['Progress']}\nSchedule:{instance['Schedule']}\nLabel:{self.speaker_token} speaker_2: {self.utterance_token} "
         
         response = instance["labels"].split("<utt> ")[1]
         

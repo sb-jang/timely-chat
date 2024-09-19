@@ -137,13 +137,11 @@ def validation(
 
     dist.all_reduce(val_loss, op=dist.ReduceOp.SUM)
     dist.all_reduce(num_non_mask, op=dist.ReduceOp.SUM)
-    if model_type == "causal":
-        val_loss /= num_non_mask
+    denominator = num_non_mask if model_type == "causal" else len(dataloader)
+    val_loss /= denominator
+    val_ppl = torch.exp(val_loss)
     
-    val_mean_loss = val_loss/len(dataloader)
-    val_ppl = torch.exp(val_mean_loss)
-    
-    return val_mean_loss.item(), val_ppl.item()
+    return val_loss.item(), val_ppl.item()
 
 
 # ==================================================

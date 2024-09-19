@@ -1,14 +1,16 @@
 import json
 import asyncio
 import openai
-from typing import Text
+from typing import Text, List, Union, Dict
 import re
 import argparse
+from datasets import load_dataset
+from huggingface_hub import login
 
 openai.api_key =""
 model_name = "gpt-4o-mini"
 
-def get_chatgpt_response(content: Text, task: Text):
+def get_chatgpt_response(content: str, task: str) -> Union[str, List[str]]:
     prompt = ""
     if task == "events":
         #if speaker_1 has... 는 내가 추가한 부분
@@ -16,7 +18,7 @@ def get_chatgpt_response(content: Text, task: Text):
         In the conversation, both speakers might have mentioned some events. 
         The events might have been finished or are currently going on and just started. 
         Extract only the events that the speakers are currently going on and just started. 
-        Summarize the events as nouns or noun phrases, such as "going for a tirp", "starting a MBA program", "taking an online course", "building a swimming pool".
+        Summarize the events as nouns or noun phrases, such as "going for a trip", "starting a MBA program", "taking an online course", "building a swimming pool".
         Describe the events as brief as possible using the shortest summary.
         Generate the answers in the format of "speaker_1: <event_1>, <event_2>.\nspeaker_2: <event_1>, <event_2>".
         if speaker_1 has the events for "going for a trip" and speaker_2 has the events for "starting a MBA program", generate "speaker_1: going for a trip.\nspeaker_2: starting a MBA program."
@@ -103,35 +105,22 @@ def get_chatgpt_response(content: Text, task: Text):
     else:
         print("wrong task name, select from _get_argsduration]")
         return
-    log_file_path = f"./data/new_data/{args.split}/{task}_log.jsonl"
+    if args.dataset == "gapchat":
+        log_file_path = f"./new_data/{args.split}/{task}_log.jsonl"
+    elif args.dataset == "timelychat":
+        log_file_path = f"/home/minjinj/timely-chat/resources/data/new_data/{task}_log.jsonl"
     log_file = open(log_file_path, "a+", encoding='utf-8')
 
     messages = {
         "role": "user", 
         "content": prompt}
 
-    response = {}
-    raw_text = ""
-    if model_name == "gpt-3.5-turbo":
-        response = openai.ChatCompletion.create(
+    response = openai.ChatCompletion.create(
             model=model_name,
             messages=[messages],
+    )
+    raw_text = response["choices"][0]["message"]["content"]
 
-        )
-        raw_text = response["choices"][0]["message"]["content"]
-    elif model_name == "gpt-4o-mini":
-        response = openai.ChatCompletion.create(
-            model=model_name,
-            messages=[messages],
-        )
-        raw_text = response["choices"][0]["message"]["content"]
-    elif model_name == "text-davinci-003":
-        response = openai.Completion.create(
-            model=model_name,
-            prompt=prompt,
-            top_p=1
-        )
-        raw_text = response["choices"][0]["text"]
     log_file.write(json.dumps(response) + "\n")
 
     if task == "schedule":
@@ -159,17 +148,29 @@ def get_chatgpt_response(content: Text, task: Text):
     if "\n" in raw_text: # it means that data has speaker_1 and speaker_2
         extracted_events = raw_text.split("\n")
     else:
+        extracted_events = []
         if ("speaker_1" in raw_text) and ("speaker_2" in raw_text):
-            parts = raw_text.split("speaker_")
-            extracted_events = [f"speaker_{part.strip()}" for part in parts if part]
+            pattern = r"(speaker_\d+:)"
+            parts = re.split(pattern, raw_text)
+            events = {"speaker_1": "", "speaker_2": ""}
+
+            for i in range(1, len(parts), 2):
+                speaker = parts[i].strip(':')
+                event = parts[i+1].strip().rstrip(',')
+                if speaker in events:
+                    events[speaker] += event
+
+            for speaker, event in events.items():
+                if event:
+                    extracted_events.append(f"{speaker}: {event}")
         else:
             extracted_events = raw_text
         print(extracted_events)
     return extracted_events
 
-def read_conversations(data_path: Text):
-    file = open(data_path, 'r', encoding='utf-8')
-    data = json.load(file)
+def read_conversations(data_path: str) -> List[str]:
+    with open(data_path, "r", encoding="utf-8") as file:
+        data = json.load(file)
     conversations = []
     for session in data:
         conversation = ""
@@ -180,8 +181,36 @@ def read_conversations(data_path: Text):
             conversations.append(conversation)
     print(len(conversations))
     return conversations
+    
+def speaker_mapping(speaker):
+    if speaker in ["A","Elisheva","Roper","Aneia","Alyzza","Anaiah","Amani","Ismar","Kyonna","A (Keltsey)","Aahron","Alyvia"]:
+        return "speaker_1"
+    elif speaker in ["B","Friend","Ryna","Nakea","Friend A","Friend B","Zacori","Aashir","C"]:
+        return "speaker_2"
+    raise ValueError(f"Invalid speaker: {speaker}")
 
-def read_log_data(data_path: Text):
+def timelychat_read_conversations(data_path: str) -> List[str]:
+    if args.dataset == "timelychat":
+        data = load_dataset(data_path, split='eval')
+    elif args.dataset == "gapchat":
+        with open(data_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+    conversations = []
+    skip_utterance_lst = ["[B reads the message]","(Avantae resumes writing the letter after the delay)","", ".","[B is typing a message...]","[Bends knee after enduring the pain]","\"I can't believe this happened.\"]","[Awaiting B's last message]","[B leaves the chat]","[A leaves the chat]","[silence]","[B gathers the courage and confesses his love to Shae]","[end of instructions]"]
+    for session in data:
+        conversation = ""
+        for utterance_idx in range(len(session['context'])):
+            utterance = session['context'][utterance_idx]
+            if utterance in skip_utterance_lst:
+                continue
+            speaker = speaker_mapping(session['speaker_list'][utterance_idx])
+            conversation += speaker + ": " + utterance + "\n"
+        conversations.append(conversation)
+    print(len(conversations))
+    return conversations
+
+
+def read_log_data(data_path: str) -> List[Dict]:
     data = []
     with open(data_path, 'r') as file:
         for line in file:
@@ -194,35 +223,29 @@ def read_log_data(data_path: Text):
                     print(f'Error parsing JSON: {e}')
     return data
 
-def read_events(data_path: Text):
-    file = open(data_path, 'r', encoding='utf-8')
-    data = json.load(file)
+def read_events(data_path: str) -> List[str]:
+    with open(data_path, "r", encoding="utf-8") as file:
+        data = json.load(file)
     events = []
     for item in data:
-        tmp_events = {
-            "speaker_1": "",
-            "speaker_2": ""
+        event = {
+           f"speaker_{id}": item[f"speaker_{id}"] if f"speaker_{id}" in item and item[f"speaker_{id}"] != ["Not mentioned."] else ""
+           for id in [1, 2]
         }
-        empty_1 = False
-        empty_2 = False
-        if "speaker_1" in item and item["speaker_1"] != ["Not mentioned."]:
-            tmp_events["speaker_1"] = item["speaker_1"]
-        else:
-            empty_1 = True
-        if "speaker_2" in item and item["speaker_2"] != ["Not mentioned."]:
-            tmp_events["speaker_2"] = item["speaker_2"]
-        else:
-            empty_2 = True
-        if empty_1 and empty_2:
+        # if all empty, append empty string
+        if not any(event.values()):
             events.append("")
-        else:
-            events.append(json.dumps(tmp_events, indent=4))
+            continue
+        
+        events.append(json.dumps(event, indent=4))       
     return events
 
-def extract_events(data_path: Text):
-    events_file = open(f"./new_data/{args.split}/extracted_events.json", 'a+', encoding='utf-8')
+def extract_events(data_path: str) -> None:
     events_list = []
-    conversations = read_conversations(data_path)
+    if args.dataset == "gapchat":
+        conversations = read_conversations(data_path)
+    elif args.dataset == "timelychat":
+        conversations = timelychat_read_conversations(data_path)
     for conversation in conversations:
         print(conversation)
         extracted_events = get_chatgpt_response(conversation, task="events")
@@ -238,15 +261,20 @@ def extract_events(data_path: Text):
             "speaker_1" : speaker_1_event.split(", "),
             "speaker_2" : speaker_2_event.split(", "),
         })
-    json.dump(events_list, events_file, indent=4)
+    if args.dataset == "gapchat":
+        save_path = f"./new_data/{args.split}/extracted_events.json"
+    elif args.dataset == "timelychat":
+        save_path = f"/home/minjinj/timely-chat/resources/data/new_data/extracted_events.json"
+    with open(save_path, 'a+', encoding='utf-8') as events_file:
+        json.dump(events_list, events_file, indent=4)
     
 
 def get_events_from_logs(log_path: Text):
-    events_file = open(f"./new_data/{args.split}/extracted_events", 'a+', encoding='utf-8')
     events_list = []
-    log_data = open(log_path, 'r', encoding='utf-8')
+    with open(log_path, 'r', encoding='utf-8') as log_file:
+        log_data = log_file.readlines()
     counter = 0
-    for line in log_data.readlines():
+    for line in log_data:
         print(counter)
         line_data = json.loads(line.strip())
         response = line_data["choices"][0]["message"]["content"]
@@ -266,63 +294,68 @@ def get_events_from_logs(log_path: Text):
             "speaker_2" : speaker_2_event_lst,
         })
         counter += 1
-    json.dump(events_list, events_file, indent=4)
+    if args.dataset == "gapchat":
+        save_path = f"./new_data/{args.split}/extracted_events.json"
+    elif args.dataset == "timelychat":
+        save_path = f"/home/minjinj/timely-chat/resources/data/new_data/extracted_events.json"
+    with open(save_path, 'a+', encoding='utf-8') as events_file:
+        json.dump(events_list, events_file, indent=4)
 
 
-def estimate_time(event_path: Text):
-    time_tagged_file = open(f"./new_data/{args.split}/time_tag.jsonl", 'a+', encoding='utf-8')
-    tagged_list = []
-    counter = 500
+def estimate_time(event_path: str) -> None:
+    counter = 0
     events = read_events(event_path)
-    for event in events[500:]:
+    if args.dataset == "gapchat":
+        time_tagged_file_path = f"./new_data/{args.split}/time_tag.jsonl"
+    elif args.dataset == "timelychat":
+        time_tagged_file_path = "/home/minjinj/timely-chat/resources/data/new_data/time_tag.jsonl"
+    time_tagged_file = open(time_tagged_file_path, 'a+', encoding='utf-8')
+    for event in events[counter:]:
         time_tag = {
             "speaker_1": [],
             "speaker_2": []
         }
-        if event == "":
-            print(f"Skipping {counter}")
-        elif event != "":
+        
+        if event != "":
             print(f"Processing {counter}")
             extracted_time = get_chatgpt_response(event, task="duration")
-            if len(extracted_time) == 2:
-                for time in extracted_time:
-                    for part in time.split(":")[1].split(","): # one event in a specific speaker
-                        if "->" in part:
-                            time_tag[time.split(":")[0].replace(' ', '').lower()].append(part.split("->")[1].strip())
-            elif len(extracted_time) == 1:
-                for part in time.split(":")[1].split(","):
+            if type(extracted_time) == str:
+                extracted_time = [extracted_time]
+            for time in extracted_time:
+                time_split = time.split(":")
+                parts = time_split[1].split(",")
+                speaker = time_split[0].replace(" ", "").lower()
+                for part in parts: # one event in a specific speaker
                     if "->" in part:
-                        time_tag[time.split(":")[0].replace(' ', '').lower()].append(part.split("->")[1].strip())
-        tagged_list.append(time_tag)
-        counter += 1
+                        duration = part.split("->")[1].strip()
+                        time_tag[speaker].append(duration)
         time_tagged_file.write(json.dumps(time_tag) + "\n")
+        counter += 1
+    time_tagged_file.close()
 
 
-def get_schedule(event_path: Text):
-    event_schedule_file = open(f"./new_data/{args.split}/schedule.jsonl", 'a+', encoding='utf-8')
+def get_schedule(event_path: str) -> None:
+    default_schedule = {"speaker_1": [], "speaker_2": []}
     events = read_events(event_path)
     counter = 0
     print(len(events))
-    for event in events:
-        print(json.dumps(event, indent=4))
-        schedule = {
-            "speaker_1": [],
-            "speaker_2": []
-        }
-        if event == "":
-            print(f"Skipping {counter}")
-        elif event != "":
-            print(f"Processing {counter}")
-            event_schedule = get_chatgpt_response(event, task="schedule")
-            if event_schedule == "Fail":
-                print(counter,"fail")
-            schedule = event_schedule
-        counter += 1
-        event_schedule_file.write(json.dumps(schedule) + "\n")
+    if args.dataset == "gapchat":
+        schedule_file_path = f"./new_data/{args.split}/schedule.jsonl"
+    elif args.dataset == "timelychat":
+        schedule_file_path = f"/home/minjinj/timely-chat/resources/data/new_data/schedule.jsonl"
+    with open(schedule_file_path, 'a+', encoding='utf-8') as event_schedule_file:
+        for event in events[counter:]:
+            print(json.dumps(event, indent=4))
+            schedule = default_schedule
+            if event and event != "Fail":
+                print(f"Processing {counter}")
+                schedule = get_chatgpt_response(event, task="schedule")
+            if schedule == "Fail":
+                schedule = default_schedule
+            counter += 1
+            event_schedule_file.write(json.dumps(schedule) + "\n")
 
-
-def get_evaluation_conversation(save_path):
-    conversation_file = open(save_path, 'a+', encoding='utf-8')
+def get_evaluation_conversation(save_path: str) -> None:
     prompt = """
     You are having a multi-session conversation with another speaker with the following conditions and example.
     
@@ -331,46 +364,47 @@ def get_evaluation_conversation(save_path):
     2. You are aware of the rough time estimation to finish different events.
     3. The conversation contains 3 sessions. 
     4. There is a time gap between each session.
-
     # your events:
     {events}
-
     # time gap:
     {gap}
     """
-
     gap_prompt = """
     It's been {gap}, and you talk with 
     """
-
-    log_file_path = f"./data/new_data/self_chatgpt_log.jsonl"
-    log_file = open(log_file_path, "a+", encoding='utf-8')
-    response = {}
-    messages = {
-        "role": "user", 
-        "content": prompt}
-    response = openai.ChatCompletion.create(
-            model=model_name,
-            messages=[messages]
-    )
-    log_file.write(json.dumps(response) + "\n")
-
-    raw_text = response["choices"][0]["message"]["content"]
-    response = {
-        "dialog": raw_text
-    }
-    conversation_file.write(json.dumps(response) + "\n")
+    log_file_path = "./data/new_data/self_chatgpt_log.jsonl"
+    with open(log_file_path, "a+", encoding='utf-8') as log_file, open(save_path, 'a+', encoding='utf-8') as conversation_file:
+        response = {}
+        messages = {
+            "role": "user", 
+            "content": prompt}
+        response = openai.ChatCompletion.create(
+                model=model_name,
+                messages=[messages]
+        )
+        log_file.write(json.dumps(response) + "\n")
+        raw_text = response["choices"][0]["message"]["content"]
+        response = {
+            "dialog": raw_text
+        }
+        conversation_file.write(json.dumps(response) + "\n")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--split', type=str, default="train", choices=['train','eval'])
+    parser.add_argument('--dataset', type=str, default="gapchat", choices=['gapchat','timelychat'])
     args = parser.parse_args()
-    
-    data_path = f"./gap_chat/{args.split}/merge.json" # path to gap_chat data
-    events_path = f"./new_data/{args.split}/extracted_events.json" # path to events
-
-    read_conversations(data_path)
+    print(args)
+    if args.dataset == "gapchat":
+        data_path = f"./gap_chat/{args.split}/merge.json" # path to gap_chat data
+        events_path = f"./new_data/{args.split}/extracted_events.json" # path to events
+        #read_conversations(data_path)
+    elif args.dataset == "timelychat":
+        #login(token="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")
+        data_path = 'seongbo-research/timelychat' # path to gap_chat data
+        events_path = "/home/minjinj/timely-chat/resources/data/new_data/extracted_events.json" # path to events
+        #timelychat_read_conversations(data_path)
     extract_events(data_path)
     #log_path = f"./new_data/{args.split}/events_log.jsonl"
     #get_events_from_logs(log_path)
