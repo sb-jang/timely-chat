@@ -34,7 +34,7 @@ from transformers import (
 from transformers.trainer_pt_utils import get_parameter_names
 
 from timely_chat.config import ArtifactConfig, ExecutionConfig, ExperimentConfig, TrainConfig
-from timely_chat.dataset import TimelyChatDataset
+from timely_chat.dataset import TimelyChatDataset, GapChatDataset
 from timely_chat.utils.argparser import build_parser, parse_args
 from timely_chat.utils.logging import TQDM_FORMAT, create_logger
 from timely_chat.utils.utils import log_wandb_metric, log_wandb_param, print_config, set_seed
@@ -53,6 +53,7 @@ SEQ2SEQ_MODELS = [
     "microsoft/GODEL-v1_1-large-seq2seq",
     "allenai/cosmo-xl",
     "ToddGoldfarb/Cadet-Tiny",
+    "seongbo-research/msc-3B",
 ]
 
 
@@ -72,6 +73,7 @@ def setup(rank: int, world_size: int, experiment_config: ExperimentConfig, execu
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
     torch.cuda.set_device(rank)
+
 
     # initlaize logger
     log_level = logging.INFO if rank == 0 else logging.ERROR
@@ -120,24 +122,25 @@ def validation(
     num_non_mask = torch.tensor([0.0], dtype=torch.float32).to(rank)
 
     with torch.no_grad():
-        for input_ids, label_ids in tqdm(dataloader, disable=rank != 0):
+        for input_ids, attention_mask, label_ids in tqdm(dataloader, disable=rank != 0):
             input_ids = input_ids.to(rank)
             label_ids = label_ids.to(rank)
+            attention_mask = attention_mask.to(rank)
 
             if model_type == "causal":
                 num_non_mask += (label_ids != LABEL_MASK_ID).sum()
-                logits = model(input_ids=input_ids).logits
+                logits = model(input_ids=input_ids, attention_mask=attention_mask).logits
                 loss = F.cross_entropy(logits.transpose(1, 2), label_ids, ignore_index=LABEL_MASK_ID, reduction="sum")
             else:
-                loss = model(input_ids=input_ids, labels=label_ids).loss
+                loss = model(input_ids=input_ids, attention_mask = attention_mask, labels=label_ids).loss
             val_loss += loss
 
     dist.all_reduce(val_loss, op=dist.ReduceOp.SUM)
     dist.all_reduce(num_non_mask, op=dist.ReduceOp.SUM)
-    if model_type == "causal":
-        val_loss /= num_non_mask
+    denominator = num_non_mask if model_type == "causal" else len(dataloader)
+    val_loss /= denominator
     val_ppl = torch.exp(val_loss)
-
+    
     return val_loss.item(), val_ppl.item()
 
 
@@ -178,11 +181,18 @@ def run(
     # ==================================================
     # load train split
     logger.info("[+] Loading train/val datasets...")
-    with open(artifact_config.train_dataset_path, "r") as f:
-        train_dataset = json.load(f)
-    train_dataset = TimelyChatDataset(
-        train_dataset, tokenizer, instantaneous_dropout=train_config.instantaneous_dropout, model_type=model_type
-    )
+    if "gapchat" in artifact_config.train_dataset_path:
+        from_hf = False
+        split = None
+        if "seongbo-research" in artifact_config.train_dataset_path:
+            from_hf = True
+            split = "train"
+        train_dataset = GapChatDataset(data_source=artifact_config.train_dataset_path, tokenizer=tokenizer, instantaneous_dropout=train_config.instantaneous_dropout, model_type=model_type, from_hf=from_hf, split=split)
+    else:    
+        with open(artifact_config.train_dataset_path, "r") as f:
+           train_dataset = json.load(f)
+        train_dataset = TimelyChatDataset(train_dataset, tokenizer, instantaneous_dropout=train_config.instantaneous_dropout, model_type=model_type)
+
     train_datasampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
     train_dataloader = DataLoader(
         dataset=train_dataset,
@@ -193,11 +203,20 @@ def run(
         pin_memory=True,
     )
     logger.info(f"[+] training data size: {len(train_dataset)}")
+    if "gapchat" in artifact_config.val_dataset_path:
+        from_hf = False
+        split = None
+        if "seongbo-research" in artifact_config.val_dataset_path:
+            from_hf = True
+            split = "valid"
+        val_dataset = GapChatDataset(
+        data_source=artifact_config.val_dataset_path, tokenizer=tokenizer, model_type=model_type,from_hf=from_hf,split=split
+    )
+    else:    
+        with open(artifact_config.val_dataset_path, "r") as f:
+           val_dataset = json.load(f)
+        val_dataset = TimelyChatDataset(val_dataset, tokenizer, model_type=model_type)
 
-    # load validation split
-    with open(artifact_config.val_dataset_path, "r") as f:
-        val_dataset = json.load(f)
-    val_dataset = TimelyChatDataset(val_dataset, tokenizer, model_type=model_type)
     val_datasampler = DistributedSampler(val_dataset, shuffle=False, drop_last=False)
     val_dataloader = DataLoader(
         dataset=val_dataset,
@@ -208,7 +227,6 @@ def run(
         pin_memory=True,
     )
     logger.info(f"[+] validation data size: {len(val_dataset)}")
-
     total_train_batch_size = train_config.train_batch_size * train_config.gradient_accumulation_steps * world_size
     logger.info(f"[+] Total train batch size: {total_train_batch_size}")
     log_wandb_param("total_train_batch_size", total_train_batch_size)
@@ -313,7 +331,7 @@ def run(
         train_datasampler.set_epoch(epoch)
         model.train()
 
-        for input_ids, label_ids in tqdm(
+        for input_ids, attention_mask, label_ids in tqdm(
             train_dataloader,
             desc=f"[Epoch: {epoch}]",
             total=len(train_dataloader),
@@ -325,13 +343,14 @@ def run(
 
             input_ids = input_ids.to(rank)
             label_ids = label_ids.to(rank)
+            attention_mask = attention_mask.to(rank)
 
             with autocast(enabled=use_amp, dtype=torch.bfloat16):
                 if model_type == "causal":
-                    output = model(input_ids=input_ids).logits
+                    output = model(input_ids=input_ids, attention_mask=attention_mask).logits
                     loss = F.cross_entropy(output.transpose(1, 2), label_ids, ignore_index=LABEL_MASK_ID)
                 else:
-                    loss = model(input_ids=input_ids, labels=label_ids).loss
+                    loss = model(input_ids=input_ids, attention_mask=attention_mask, labels=label_ids).loss
             loss /= train_config.gradient_accumulation_steps
             logging_loss += loss.detach()
 

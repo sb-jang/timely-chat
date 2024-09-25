@@ -1,0 +1,265 @@
+{"speaker_1": ["1 month", "1 month"], "speaker_2": ["1 week", "2 weeks", "1 week"]}
+{"speaker_1": ["1 month", "2 weeks"], "speaker_2": ["1 week", "1 week"]}
+{"speaker_1": ["1 month", "1 day"], "speaker_2": ["2 weeks", "1 month", "3 hours"]}
+{"speaker_1": ["6 months"], "speaker_2": ["1 day"]}
+{"speaker_1": ["6 months", "3 months", "1 year", "1 year"], "speaker_2": ["2 days", "6 months"]}
+{"speaker_1": ["6 months", "1 year"], "speaker_2": ["1 day", "3 months"]}
+{"speaker_1": ["4 months", "3 months"], "speaker_2": ["1 month"]}
+{"speaker_1": ["3 months"], "speaker_2": ["2 months"]}
+{"speaker_1": ["3 months", "2 months"], "speaker_2": ["1 month", "1 day", "1 day"]}
+{"speaker_1": ["1 week"], "speaker_2": ["3 months"]}
+{"speaker_1": ["1 week", "1 month", "1 year"], "speaker_2": ["3 months", "indefinite"]}
+{"speaker_1": ["2 days", "1 month", "1 year", "2 months"], "speaker_2": ["3 months", "1 week"]}
+{"speaker_1": ["6 months"], "speaker_2": ["3 months"]}
+{"speaker_1": ["3 months"], "speaker_2": ["3 months", "2 hours"]}
+{"speaker_1": ["6 months", "1 day", "1 day", "1 day", "1 month"], "speaker_2": ["3 months", "2 hours", "1 day", "1 day"]}
+{"speaker_1": ["1 day"], "speaker_2": ["3 months", "1 week"]}
+{"speaker_1": ["1 day"], "speaker_2": ["3 months", "1 month"]}
+{"speaker_1": ["1 day", "1 month", "1 week"], "speaker_2": ["3 months", "1 week"]}
+{"speaker_1": ["2 weeks"], "speaker_2": ["6 months"]}
+{"speaker_1": ["1 month"], "speaker_2": ["6 months"]}
+{"speaker_1": ["2 weeks", "3 months"], "speaker_2": ["6 months", "1 month"]}
+{"speaker_1": ["1 week"], "speaker_2": ["6 months"]}
+{"speaker_1": ["1 week", "3 months", "1 day", "1 day"], "speaker_2": ["3 months", "1 week", "2 days", "1 week"]}
+{"speaker_1": ["1 week", "3 months", "1 day", "1 day"], "speaker_2": ["6 months", "1 week", "2 days"]}
+{"speaker_1": [], "speaker_2": ["2 years", "1 month"]}
+{"speaker_1": ["1 month", "3 months"], "speaker_2": ["2 years", "1 month", "1 day"]}
+{"speaker_1": ["3 months"], "speaker_2": ["1 month", "1 month", "2 months"]}
+{"speaker_1": ["6 months", "3 months"], "speaker_2": ["1 week", "1 week", "1 week"]}
+{"speaker_1": ["6 months", "3 months"], "speaker_2": ["1 week", "2 weeks", "1 month", "1 month", "1 month"]}
+{"speaker_1": ["6 months", "3 months"], "speaker_2": ["2 weeks", "1 month", "2 weeks", "1 week", "3 months", "1 month", "1 month", "3 months", "6 months"]}
+{"speaker_1": ["3 months", "3 months"], "speaker_2": ["1 month"]}
+{"speaker_1": ["2 months", "1 month", "1 hour", "2 hours", "1 hour"], "speaker_2": ["1 day", "1 week"]}
+{"speaker_1": ["2 months", "1 month", "30 minutes", "2 hours", "2 hours", "1 day", "1 day"], "speaker_2": ["1 month", "1 week", "1 day", "1 day"]}
+{"speaker_1": ["3 months"], "speaker_2": ["2 months"]}
+{"speaker_1": ["3 months", "1 month"], "speaker_2": ["2 months", "1 month", "2 weeks"]}
+{"speaker_1": ["3 months", "1 hour"], "speaker_2": ["2 months", "1 week", "1 week", "1 month", "1 month", "2 months"]}
+{"speaker_1": ["3 days", "1 day"], "speaker_2": ["6 months"]}
+{"speaker_1": ["3 days", "1 hour"], "speaker_2": ["6 months", "2 hours"]}
+{"speaker_1": [], "speaker_2": ["6 months", "1 day", "1 hour"]}
+{"speaker_1": ["3 months"], "speaker_2": ["1 month", "2 months"]}
+{"speaker_1": ["1 month"], "speaker_2": ["1 month", "3 months", "indefinite"]}
+{"speaker_1": ["3 months", "3 months", "6 months", "1 year"], "speaker_2": ["1 month", "6 months", "3 months"]}
+{"speaker_1": ["6 months"], "speaker_2": ["3 months"]}
+{"speaker_1": ["6 months", "1 day"], "speaker_2": ["3 months", "1 month", "2 months"]}
+{"speaker_1": ["6 months", "1 month"], "speaker_2": ["3 months", "3 months", "1 month", "1 day", "1 day", "1 week", "1 day"]}
+{"speaker_1": ["1 day", "1 week"], "speaker_2": ["1 day", "6 months"]}
+{"speaker_1": ["1 day", "1 month", "2 weeks", "3 months", "6 months", "1 month"], "speaker_2": ["6 months", "1 month", "2 months", "1 week", "2 weeks"]}
+{"speaker_1": ["1 day", "3 months", "1 month", "6 months", "6 months", "1 month"], "speaker_2": ["6 months", "2 months", "1 month", "1 week", "2 weeks", "1 month", "3 months", "indefinite", "1 day"]}
+{"speaker_1": ["1 day", "3 months", "1 month", "6 months", "1 month", "2 weeks", "1 day", "1 hour", "2 hours"], "speaker_2": ["3 months", "1 month", "3 months", "2 weeks", "1 week", "1 month", "6 months", "indefinite", "1 hour", "1 month", "2 weeks"]}
+{"speaker_1": ["6 months"], "speaker_2": ["3 months"]}
+{"speaker_1": ["6 months"], "speaker_2": ["3 months"]}
+{"speaker_1": ["6 months"], "speaker_2": ["3 months", "2 months", "1 month"]}
+{"speaker_1": ["6 months"], "speaker_2": ["3 months", "2 months", "1 month", "1 month", "1 month", "1 month"]}
+{"speaker_1": ["1 month", "3 months", "2 weeks"], "speaker_2": ["1 month", "1 week"]}
+{"speaker_1": ["1 month", "3 months", "2 months"], "speaker_2": ["2 months", "1 week", "1 week"]}
+{"speaker_1": ["3 months", "2 months", "6 months"], "speaker_2": ["1 month", "1 week", "1 year", "1 day"]}
+{"speaker_1": ["1 month", "3 months", "6 months", "2 months", "1 week"], "speaker_2": ["2 months", "2 weeks", "3 months", "1 day"]}
+{"speaker_1": ["6 months"], "speaker_2": ["1 day"]}
+{"speaker_1": ["6 months", "1 day"], "speaker_2": ["1 day", "3 months", "1 month"]}
+{"speaker_1": ["6 months", "1 day", "6 months"], "speaker_2": ["1 day", "1 week", "6 months", "1 month", "3 months"]}
+{"speaker_1": ["6 months", "1 day", "1 week", "1 year", "1 month"], "speaker_2": ["1 day", "3 months", "6 months", "1 week", "2 days", "1 month", "1 month"]}
+{"speaker_1": ["3 months"], "speaker_2": ["1 day"]}
+{"speaker_1": ["3 months", "1 month"], "speaker_2": ["1 day", "2 hours", "3 months"]}
+{"speaker_1": ["6 months", "1 month", "1 month"], "speaker_2": ["1 day", "2 hours", "4 hours"]}
+{"speaker_1": ["6 months", "1 month", "1 month"], "speaker_2": ["1 day", "2 hours", "2 hours", "2 hours"]}
+{"speaker_1": ["1 week"], "speaker_2": ["1 week"]}
+{"speaker_1": ["1 week"], "speaker_2": ["1 week", "1 month", "3 months"]}
+{"speaker_1": ["1 week", "6 months"], "speaker_2": ["1 week", "1 month"]}
+{"speaker_1": ["2 weeks", "6 months"], "speaker_2": ["2 weeks", "3 months", "1 year"]}
+{"speaker_1": ["1 month"], "speaker_2": ["3 months", "2 months"]}
+{"speaker_1": ["1 month"], "speaker_2": ["6 months", "1 day", "1 week"]}
+{"speaker_1": ["1 month", "1 month", "1 day", "1 week"], "speaker_2": ["1 month", "1 day", "1 week", "1 week", "2 weeks", "1 month"]}
+{"speaker_1": ["1 month", "1 day", "1 week", "indefinite"], "speaker_2": ["3 months", "1 day", "2 weeks", "3 months"]}
+{"speaker_1": ["2 years"], "speaker_2": ["1 month"]}
+{"speaker_1": ["2 years", "1 day"], "speaker_2": ["1 month", "1 week"]}
+{"speaker_1": ["1 year", "1 week", "1 day", "1 day"], "speaker_2": ["1 month", "1 day", "1 day"]}
+{"speaker_1": ["2 years", "1 day", "1 day", "3 months"], "speaker_2": ["1 month", "2 days", "1 day", "1 week"]}
+{"speaker_1": ["3 months"], "speaker_2": ["1 day"]}
+{"speaker_1": ["3 months"], "speaker_2": ["1 week"]}
+{"speaker_1": ["3 months", "6 months", "1 month"], "speaker_2": ["1 year", "1 month"]}
+{"speaker_1": ["3 months", "6 months", "1 month"], "speaker_2": ["1 year", "2 months", "1 hour"]}
+{"speaker_1": ["4 months", "2 weeks"], "speaker_2": ["1 month", "1 day"]}
+{"speaker_1": ["3 months", "2 months", "1 month", "1 month", "1 month"], "speaker_2": ["1 week", "1 month", "3 months"]}
+{"speaker_1": ["3 months", "2 months", "1 month", "1 month", "1 week", "1 week"], "speaker_2": ["1 week", "1 month", "2 weeks", "1 hour", "2 months", "20 minutes"]}
+{"speaker_1": ["3 months", "2 months", "6 months", "1 week", "1 week"], "speaker_2": ["1 month", "6 months", "1 month", "1 hour", "3 months", "1 hour"]}
+{"speaker_1": ["1 week"], "speaker_2": ["6 months", "3 months"]}
+{"speaker_1": ["1 week", "1 month", "3 months"], "speaker_2": ["6 months", "6 months", "1 month", "2 weeks"]}
+{"speaker_1": ["1 week", "1 month", "6 months", "1 day"], "speaker_2": ["6 months", "3 months", "1 month", "1 day", "2 weeks", "1 day"]}
+{"speaker_1": ["1 week", "1 month", "3 months", "2 days", "6 months", "1 day"], "speaker_2": ["6 months", "3 months", "1 month", "1 day", "1 hour", "1 week"]}
+{"speaker_1": ["1 week"], "speaker_2": ["1 month", "1 month", "1 year"]}
+{"speaker_1": ["1 week", "3 months", "1 day"], "speaker_2": ["1 month", "2 weeks", "1 week"]}
+{"speaker_1": ["3 months", "1 day"], "speaker_2": ["1 month", "2 weeks", "1 day", "N/A", "N/A", "3 months"]}
+{"speaker_1": ["6 months", "3 months", "1 month"], "speaker_2": ["2 months", "1 month", "1 week", "3 months", "1 month", "3 months"]}
+{"speaker_1": ["1 day", "1 week"], "speaker_2": ["1 month", "2 weeks"]}
+{"speaker_1": ["1 day", "1 month", "2 weeks", "1 month"], "speaker_2": ["1 month", "2 weeks", "3 months", "3 months"]}
+{"speaker_1": ["1 day", "1 month", "2 weeks", "2 months", "9 months"], "speaker_2": ["1 month", "2 weeks", "3 months", "6 months", "4 weeks"]}
+{"speaker_1": ["1 day", "2 weeks", "1 month", "2 months", "3 months", "1 month"], "speaker_2": ["2 weeks", "1 week", "1 month", "6 months", "indefinite", "1 month", "6 months", "6 months"]}
+{"speaker_1": ["1 week"], "speaker_2": ["3 days"]}
+{"speaker_1": ["1 week", "1 day", "1 month"], "speaker_2": ["3 days", "1 day", "2 hours", "1 week", "1 day"]}
+{"speaker_1": ["1 week", "1 day", "1 month", "3 months"], "speaker_2": ["2 days", "1 day", "1 month", "1 day"]}
+{"speaker_1": ["1 week", "1 day", "1 month", "3 months", "1 day"], "speaker_2": ["3 days", "1 day", "1 month", "2 hours"]}
+{"speaker_1": ["6 months"], "speaker_2": ["1 month", "3 months"]}
+{"speaker_1": ["6 months", "1 month"], "speaker_2": ["1 week", "3 days"]}
+{"speaker_1": ["6 months", "1 month", "1 day", "1 day", "2 weeks", "1 day"], "speaker_2": ["3 months", "1 week", "6 months", "1 month"]}
+{"speaker_1": ["6 months", "1 month", "4 months", "2 months", "1 month", "1 day", "1 day", "1 week", "1 week."], "speaker_2": ["3 months", "1 week", "indefinite", "1 month", "2 months", "6 months", "3 months", "3 months."]}
+{"speaker_1": ["indefinite"], "speaker_2": ["indefinite"]}
+{"speaker_1": ["indefinite"], "speaker_2": ["indefinite"]}
+{"speaker_1": ["1 year", "1 hour"], "speaker_2": ["1 year", "1 month"]}
+{"speaker_1": ["indefinite", "1 hour"], "speaker_2": ["indefinite", "1 month"]}
+{"speaker_1": ["1 month"], "speaker_2": ["1 week"]}
+{"speaker_1": ["6 months", "1 year", "1 day"], "speaker_2": ["1 week", "indefinite"]}
+{"speaker_1": ["1 month", "1 hour"], "speaker_2": ["1 week", "3 hours", "1 month"]}
+{"speaker_1": ["1 month", "1 hour", "1 day", "1 day", "1 week"], "speaker_2": ["1 week", "3 hours", "3 months", "2 days", "2 hours"]}
+{"speaker_1": ["1 month"], "speaker_2": ["3 days"]}
+{"speaker_1": ["1 month"], "speaker_2": ["3 days", "2 weeks"]}
+{"speaker_1": ["indefinite"], "speaker_2": ["3 days", "1 hour", "2 hours"]}
+{"speaker_1": ["1 week", "1 day"], "speaker_2": ["3 days", "1 hour", "1 year", "1 week", "1 day"]}
+{"speaker_1": ["3 months"], "speaker_2": ["1 month"]}
+{"speaker_1": ["6 months", "1 month", "2 weeks"], "speaker_2": ["3 months", "1 week", "2 weeks", "3 months", "6 months", "1 month"]}
+{"speaker_1": ["6 months", "1 day", "1 month", "1 day", "1 day", "1 year"], "speaker_2": ["3 months", "1 week", "2 weeks", "6 months", "3 months", "1 month", "2 weeks", "1 month", "1 week"]}
+{"speaker_1": ["1 month", "2 weeks", "1 month", "1 day", "1 week", "1 month", "1 month"], "speaker_2": ["1 month", "1 week", "1 week", "2 days", "1 month", "1 week", "indefinite", "indefinite", "1 month"]}
+{"speaker_1": ["1 day"], "speaker_2": ["1 month", "1 week"]}
+{"speaker_1": ["1 week", "1 week"], "speaker_2": ["3 months", "6 months", "2 weeks"]}
+{"speaker_1": ["1 week", "3 days"], "speaker_2": ["6 months", "1 year", "3 months", "1 year", "3 months"]}
+{"speaker_1": ["1 week", "6 months"], "speaker_2": ["1 month", "2 weeks", "3 months"]}
+{"speaker_1": ["6 months", "3 months"], "speaker_2": []}
+{"speaker_1": ["6 months", "1 day", "1 hour"], "speaker_2": ["1 week", "30 minutes", "2 hours"]}
+{"speaker_1": ["6 months", "6 months", "1 day", "2 hours", "2 hours", "1 day"], "speaker_2": ["2 days", "1 hour", "1 day", "3 hours", "3 hours", "2 hours", "1 day"]}
+{"speaker_1": ["6 months", "3 months", "1 day", "2 hours", "3 hours", "1 day", "1 week", "3 months", "1 month"], "speaker_2": ["1 hour", "1 week", "2 months", "1 month", "2 weeks"]}
+{"speaker_1": ["1 month"], "speaker_2": ["1 week"]}
+{"speaker_1": ["1 month", "1 day", "1 hour"], "speaker_2": ["1 day", "2 hours", "1 hour"]}
+{"speaker_1": ["1 month"], "speaker_2": ["1 week", "1 hour", "1 week", "1 month"]}
+{"speaker_1": ["1 month", "2 weeks", "1 week", "2 weeks"], "speaker_2": ["1 month", "3 months"]}
+{"speaker_1": ["2 years", "6 months"], "speaker_2": []}
+{"speaker_1": ["2 years", "6 months", "6 months"], "speaker_2": ["1 month", "3 months", "1 month", "1 week"]}
+{"speaker_1": ["2 years", "6 months", "6 months"], "speaker_2": ["1 month", "3 months", "3 months", "1 week", "1 month"]}
+{"speaker_1": ["1 year", "6 months", "6 months", "1 day", "1 day"], "speaker_2": ["1 month", "3 months", "3 months", "1 week", "1 month", "3 days"]}
+{"speaker_1": ["1 month"], "speaker_2": ["3 months", "1 month", "2 months", "3 months"]}
+{"speaker_1": ["3 months"], "speaker_2": ["6 months", "1 year", "4 hours"]}
+{"speaker_1": ["3 months"], "speaker_2": ["3 months", "1 year", "1 day"]}
+{"speaker_1": ["6 months"], "speaker_2": ["3 months", "1 year"]}
+{"speaker_1": ["6 months"], "speaker_2": ["3 months"]}
+{"speaker_1": ["6 months", "3 months"], "speaker_2": ["3 months", "6 months", "1 year"]}
+{"speaker_1": ["6 months", "3 months"], "speaker_2": ["3 months", "6 months", "2 weeks"]}
+{"speaker_1": ["3 months", "1 day", "1 day"], "speaker_2": ["indefinite", "3 hours", "2 hours"]}
+{"speaker_1": ["1 year"], "speaker_2": ["1 year", "6 months"]}
+{"speaker_1": ["indefinite"], "speaker_2": ["indefinite", "1 hour"]}
+{"speaker_1": ["6 months"], "speaker_2": ["6 months", "1 week"]}
+{"speaker_1": ["6 months", "6 months", "1 week", "3 months"], "speaker_2": ["6 months", "1 month", "6 months"]}
+{"speaker_1": ["1 day"], "speaker_2": ["3 years"]}
+{"speaker_1": ["1 day", "1 day", "1 day", "1 day", "1 month"], "speaker_2": ["1 year", "1 month", "1 month", "2 years"]}
+{"speaker_1": ["1 day", "2 hours"], "speaker_2": ["1 year", "3 months", "3 months", "2 years"]}
+{"speaker_1": ["2 hours", "3 hours", "5 hours"], "speaker_2": ["1 year", "2 months", "3 months", "2 months"]}
+{"speaker_1": ["3 months", "1 day"], "speaker_2": ["1 day"]}
+{"speaker_1": ["3 months", "1 day"], "speaker_2": ["1 day"]}
+{"speaker_1": ["6 months", "1 day", "1 month", "1 day"], "speaker_2": ["1 week", "1 month", "1 month", "2 hours", "1 hour"]}
+{"speaker_1": ["3 months", "1 day", "1 week"], "speaker_2": ["1 week", "1 month", "1 month", "indefinite"]}
+{"speaker_1": ["3 months", "6 months"], "speaker_2": ["6 months"]}
+{"speaker_1": ["6 months", "1 month", "1 year", "6 months"], "speaker_2": ["4 years", "3 months", "1 month"]}
+{"speaker_1": ["6 months", "1 day", "1 year", "6 months"], "speaker_2": ["4 years", "3 months", "2 months"]}
+{"speaker_1": ["3 months", "6 months", "1 year", "6 months"], "speaker_2": ["4 years", "3 months", "1 month"]}
+{"speaker_1": ["1 year", "6 months"], "speaker_2": ["6 months"]}
+{"speaker_1": ["1 year", "6 months"], "speaker_2": ["6 months", "1 day", "2 hours", "1 week"]}
+{"speaker_1": ["1 year", "1 month", "1 day"], "speaker_2": ["6 months", "1 day", "1 week", "2 days"]}
+{"speaker_1": ["1 year", "6 months", "3 months", "1 month", "1 day", "1 day"], "speaker_2": ["6 months", "1 weekend", "1 day", "2 hours", "1 month", "2 weeks", "1 week"]}
+{"speaker_1": ["1 year"], "speaker_2": ["2 months", "1 month", "1 month"]}
+{"speaker_1": ["6 months"], "speaker_2": ["2 months", "1 month", "1 month", "1 month", "1 month"]}
+{"speaker_1": ["6 months"], "speaker_2": ["1 month", "3 months", "1 month"]}
+{"speaker_1": ["6 months"], "speaker_2": ["3 months", "1 month", "2 months", "1 month"]}
+{"speaker_1": ["6 months", "1 year"], "speaker_2": ["1 day", "9 months", "3 months"]}
+{"speaker_1": ["1 month"], "speaker_2": ["2 months"]}
+{"speaker_1": ["3 months", "1 month", "6 months"], "speaker_2": ["1 month"]}
+{"speaker_1": ["3 months", "2 months", "1 month", "6 months"], "speaker_2": ["2 months", "1 month", "1 month", "1 day"]}
+{"speaker_1": ["2 months", "1 month", "6 months", "1 day", "1 day"], "speaker_2": ["1 month", "2 weeks", "1 day"]}
+{"speaker_1": ["2 months", "1 month", "6 months", "1 hour", "1 day"], "speaker_2": ["2 weeks", "1 hour", "3 hours"]}
+{"speaker_1": ["6 months"], "speaker_2": ["1 month", "1 week"]}
+{"speaker_1": ["3 months", "6 months", "9 months"], "speaker_2": ["1 month", "3 months", "6 months"]}
+{"speaker_1": ["3 months", "1 month"], "speaker_2": ["3 months", "1 month", "9 months"]}
+{"speaker_1": ["1 month"], "speaker_2": ["1 day", "1 month", "3 months"]}
+{"speaker_1": ["1 month", "1 day"], "speaker_2": ["1 day", "2 hours"]}
+{"speaker_1": ["1 month"], "speaker_2": ["1 day"]}
+{"speaker_1": ["1 day", "1 week", "6 months", "3 months", "1 month"], "speaker_2": ["6 months"]}
+{"speaker_1": ["2 weeks", "6 months", "1 month", "1 week"], "speaker_2": ["1 day", "3 months", "1 month", "6 months", "6 months"]}
+{"speaker_1": ["1 month", "6 months", "2 weeks"], "speaker_2": ["1 day", "3 months", "2 months", "6 months", "1 year", "1 day", "1 day", "1 week"]}
+{"speaker_1": ["1 month", "6 months", "3 months", "3 months", "1 day", "1 year"], "speaker_2": ["1 day", "3 months", "6 months", "3 months", "1 week", "9 months", "6 months"]}
+{"speaker_1": ["1 month"], "speaker_2": ["3 months"]}
+{"speaker_1": ["3 months"], "speaker_2": ["3 months"]}
+{"speaker_1": ["3 months"], "speaker_2": ["3 months"]}
+{"speaker_1": ["3 months", "3 months"], "speaker_2": ["3 months", "2 hours", "4 hours"]}
+{"speaker_1": ["3 months", "1 hour", "3 hours"], "speaker_2": ["1 month", "1 year"]}
+{"speaker_1": ["6 months"], "speaker_2": ["1 year"]}
+{"speaker_1": ["3 months", "1 day", "2 months"], "speaker_2": ["6 months", "3 months", "4 months", "1 month", "2 months"]}
+{"speaker_1": ["6 months"], "speaker_2": ["6 months", "1 year"]}
+{"speaker_1": ["6 months"], "speaker_2": ["6 months", "1 year"]}
+{"speaker_1": ["1 month", "3 months", "2 months", "6 months"], "speaker_2": ["6 months", "3 months", "1 month", "1 month", "1 month", "1 year", "1 week", "3 months", "1 month"]}
+{"speaker_1": ["3 years"], "speaker_2": ["6 months"]}
+{"speaker_1": ["3 years"], "speaker_2": ["3 months", "6 months", "1 year"]}
+{"speaker_1": ["3 years", "1 day", "1 day"], "speaker_2": ["1 month", "3 months", "6 months", "1 day"]}
+{"speaker_1": ["3 years", "1 week", "1 day", "2 days", "1 month"], "speaker_2": ["6 months", "1 month", "1 season", "6 months"]}
+{"speaker_1": ["1 year", "1 day", "1 day", "2 days", "3 months"], "speaker_2": ["3 months", "6 months", "6 months", "1 month", "1 year"]}
+{"speaker_1": ["3 days", "2 months"], "speaker_2": ["3 months"]}
+{"speaker_1": ["3 days", "3 months"], "speaker_2": ["3 months", "1 month"]}
+{"speaker_1": ["3 days", "1 month", "1 day", "1 day", "1 day", "1 day"], "speaker_2": ["3 months", "1 day", "3 months", "2 weeks"]}
+{"speaker_1": ["3 days", "3 months", "1 month", "1 season"], "speaker_2": ["2 weeks", "3 months", "1 month"]}
+{"speaker_1": ["3 days", "6 months", "1 month", "1 week"], "speaker_2": ["2 weeks", "1 month", "2 months", "1 hour"]}
+{"speaker_1": ["2 weeks", "1 week"], "speaker_2": ["1 week", "3 days"]}
+{"speaker_1": ["3 months"], "speaker_2": ["1 month", "2 months"]}
+{"speaker_1": ["3 months", "2 months"], "speaker_2": ["1 month"]}
+{"speaker_1": ["3 months", "1 month"], "speaker_2": ["2 months", "1 month"]}
+{"speaker_1": ["6 months", "3 months"], "speaker_2": ["1 month", "6 months"]}
+{"speaker_1": ["6 months"], "speaker_2": ["1 week"]}
+{"speaker_1": ["6 months"], "speaker_2": ["1 week", "1 month"]}
+{"speaker_1": ["6 months", "1 evening"], "speaker_2": ["1 week", "1 day", "2 months", "1 month", "3 months"]}
+{"speaker_1": ["6 months", "1 evening", "1 day", "1 day"], "speaker_2": ["1 week", "1 day", "1 hour", "1 hour", "1 month", "1 month", "1 day", "1 day", "1 hour", "1 month"]}
+{"speaker_1": ["6 months", "1 day"], "speaker_2": ["1 week", "2 hours", "1 hour", "30 minutes", "2 weeks", "1 month", "1 day", "1 week", "2 months", "1 week", "1 month", "2 months", "3 months"]}
+{"speaker_1": ["1 week"], "speaker_2": ["3 months", "1 month"]}
+{"speaker_1": ["1 week", "1 day", "1 day"], "speaker_2": ["3 months", "1 month", "1 month", "1 day", "1 day", "1 day"]}
+{"speaker_1": ["1 week"], "speaker_2": ["3 months", "2 months", "1 month"]}
+{"speaker_1": ["1 week", "6 months", "1 month"], "speaker_2": ["3 months", "1 month", "1 month", "6 months", "1 month", "2 months"]}
+{"speaker_1": ["1 week", "1 year", "1 day"], "speaker_2": ["3 months", "1 month", "1 month", "6 months", "indefinite", "9 months"]}
+{"speaker_1": ["1 month"], "speaker_2": []}
+{"speaker_1": ["1 month", "1 day"], "speaker_2": ["3 months", "6 months"]}
+{"speaker_1": ["1 day", "1 month"], "speaker_2": ["3 months", "6 months", "1 day", "1 week"]}
+{"speaker_1": ["3 days", "1 month", "1 day", "2 weeks"], "speaker_2": ["1 month", "1 week", "3 months"]}
+{"speaker_1": ["1 month", "3 months"], "speaker_2": ["1 month", "3 months"]}
+{"speaker_1": ["1 day", "1 day", "1 day"], "speaker_2": ["3 months", "1 month", "3 months"]}
+{"speaker_1": ["1 week", "1 day", "3 days", "1 day", "1 evening"], "speaker_2": ["3 months", "2 months", "1 day", "1 week"]}
+{"speaker_1": ["1 day", "1 day", "1 day"], "speaker_2": ["3 months", "1 month", "3 months"]}
+{"speaker_1": ["1 day", "1 day", "1 day", "1 day", "2 days", "1 day", "1 day", "1 week", "1 day", "2 hours", "1 evening"], "speaker_2": ["3 months", "1 month", "1 month", "1 day", "1 week", "30 minutes", "1 hour", "30 minutes", "2 hours"]}
+{"speaker_1": ["1 week", "2 days", "1 day", "1 week", "2 weeks", "1 day", "2 days."], "speaker_2": ["3 months", "1 month", "3 months", "1 day", "1 hour", "30 minutes", "2 hours", "1 day."]}
+{"speaker_1": ["6 months", "3 months"], "speaker_2": []}
+{"speaker_1": ["6 months", "3 months", "1 month", "1 month", "6 months", "1 month"], "speaker_2": ["3 months", "1 month"]}
+{"speaker_1": ["1 day", "6 months", "3 months", "1 month", "2 weeks", "3 months"], "speaker_2": ["3 months", "1 month", "1 week", "1 day", "2 months"]}
+{"speaker_1": ["6 months", "3 months", "1 month", "1 month", "1 day", "1 month", "2 months"], "speaker_2": ["3 months", "1 month", "2 months"]}
+{"speaker_1": ["1 day", "6 months", "3 months", "1 month", "1 week", "2 months", "1 month", "2 months", "3 months", "2 months", "2 hours"], "speaker_2": ["3 months", "1 month", "1 week", "2 months", "1 day"]}
+{"speaker_1": ["2 weeks"], "speaker_2": ["1 day"]}
+{"speaker_1": ["6 months"], "speaker_2": ["1 day", "3 months"]}
+{"speaker_1": ["6 months", "3 months"], "speaker_2": ["1 day", "1 week"]}
+{"speaker_1": ["6 months", "2 hours"], "speaker_2": ["1 day", "3 months"]}
+{"speaker_1": ["1 year", "1 month", "6 months"], "speaker_2": ["1 month", "9 months"]}
+{"speaker_1": ["1 month"], "speaker_2": ["1 day"]}
+{"speaker_1": ["1 month"], "speaker_2": ["1 day"]}
+{"speaker_1": ["1 month", "2 weeks", "3 months", "1 day", "1 month"], "speaker_2": ["2 days", "1 month", "2 months"]}
+{"speaker_1": ["1 month", "1 week", "3 months", "1 day", "2 weeks", "1 hour", "1 hour"], "speaker_2": ["1 day", "1 month", "2 weeks", "1 hour"]}
+{"speaker_1": ["3 months", "6 months"], "speaker_2": ["1 month", "1 month"]}
+{"speaker_1": ["1 month", "3 months"], "speaker_2": ["6 months"]}
+{"speaker_1": ["1 month", "6 months"], "speaker_2": ["3 months", "1 month"]}
+{"speaker_1": ["3 months"], "speaker_2": ["1 month", "9 months", "6 months"]}
+{"speaker_1": ["3 months", "1 month", "6 months"], "speaker_2": ["3 months", "1 month", "9 months", "2 months", "6 months", "3 months"]}
+{"speaker_1": ["1 month", "3 months", "2 months", "6 months"], "speaker_2": ["3 months", "3 months", "6 months", "2 months"]}
+{"speaker_1": ["6 months"], "speaker_2": ["3 months", "1 month"]}
+{"speaker_1": ["6 months"], "speaker_2": ["1 month"]}
+{"speaker_1": ["2 hours", "1 hour"], "speaker_2": ["1 week", "2 hours", "1 hour"]}
+{"speaker_1": ["6 months"], "speaker_2": ["3 months"]}
+{"speaker_1": ["2 months"], "speaker_2": ["1 month"]}
+{"speaker_1": ["1 week"], "speaker_2": ["6 months", "3 months"]}
+{"speaker_1": ["1 month", "1 year", "1 month"], "speaker_2": ["6 months", "3 months", "1 week", "1 month"]}
+{"speaker_1": ["3 months", "6 months"], "speaker_2": ["6 months", "3 months", "1 month"]}
+{"speaker_1": ["1 week", "1 month"], "speaker_2": ["6 months", "3 months", "2 months", "1 year"]}
+{"speaker_1": ["1 week", "1 month", "2 weeks", "1 month", "2 weeks"], "speaker_2": ["3 months", "1 month", "2 weeks", "3 months", "1 month"]}
+{"speaker_1": ["1 year"], "speaker_2": ["1 day"]}
+{"speaker_1": ["1 year"], "speaker_2": ["1 day", "1 month", "3 months"]}
+{"speaker_1": ["1 year", "1 week", "1 day"], "speaker_2": ["1 day", "1 month", "1 day", "1 month"]}
+{"speaker_1": ["1 year", "6 months"], "speaker_2": ["1 day", "1 hour per session", "2 weeks", "2 hours", "1 hour"]}
+{"speaker_1": ["6 months", "3 months", "1 month", "1 month", "2 months"], "speaker_2": ["1 day", "1 hour", "1 hour", "3 months"]}
