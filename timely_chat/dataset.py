@@ -53,7 +53,7 @@ class TimelyChatDataset(Dataset):
         instance = self.supervised_finetuning_instances[index]
 
         # make dialogue history
-        context = f"{self.speaker_token} {instance['speaker_list'][0]}: {self.utterance_token}{instance['context'][0]}"
+        context = f"{self.speaker_token} {instance['speaker_list'][0]}: {self.utterance_token} {instance['context'][0]}"
         for speaker, utterance in zip(instance["speaker_list"][1:], instance["context"][1:]):
             context += f" {self.speaker_token} {speaker}:"
             drop = np.random.rand() < self.instantaneous_dropout
@@ -75,15 +75,74 @@ class TimelyChatDataset(Dataset):
             tokenized_inputs = self.tokenizer(context, padding="max_length", truncation=True)
             input_ids = tokenized_inputs["input_ids"]
             attention_mask = tokenized_inputs["attention_mask"]
+            label_ids = input_ids[1:]
             input_ids = input_ids[:-1]
             attention_mask = attention_mask[:-1]
-            label_ids = label_ids[1:]
-
         return torch.tensor(input_ids, dtype=torch.long), torch.tensor(attention_mask, dtype=torch.long), torch.tensor(label_ids, dtype=torch.long)
 
     def __len__(self) -> int:
         return len(self.supervised_finetuning_instances)
+
+class AugmentedDataset(Dataset):
+    def __init__(
+        self,
+        data_path: str,
+        tokenizer: AutoTokenizer,
+        speaker_token: str = "<spk>",
+        time_token: str = "<time>",
+        utterance_token: str = "<utt>",
+        instantaneous_dropout: float = 0.0,
+        ):
+        self.data_path = data_path
+        self.tokenizer = tokenizer
+        self.speaker_token = speaker_token
+        self.time_token = time_token
+        self.utterance_token = utterance_token
+        self.instantaneous_dropout = instantaneous_dropout
+        self._set_up()
     
+    def _set_up(self):
+        timely_dataset = load_dataset("json",data_files=self.data_path,split='train')
+        timelychat_augmented_dataset = timely_dataset.map(self._augment_data, remove_columns=timely_dataset.column_names)
+        all_augmented_data = [item for sublist in timelychat_augmented_dataset['augmented_data'] for item in sublist]
+        self.inputs = [item["input"] for item in all_augmented_data]
+        self.outputs = [item["output"] for item in all_augmented_data]
+
+    def _augment_data(self,instance):
+        outputs = []
+        inputs = []
+        # make dialogue history
+        context = f"{self.speaker_token} {instance['speaker_list'][0]}: {self.utterance_token} {instance['context'][0]}"
+        n_turn = len(instance['context'])
+        n_response = 5 if n_turn > 6 else n_turn-1
+        for idx,(speaker, utterance) in enumerate(zip(instance["speaker_list"][1:], instance["context"][1:])):
+            context += f" {self.speaker_token} {speaker}:"
+            drop = np.random.rand() < self.instantaneous_dropout
+            if not drop:
+                context += f" {self.time_token} 0 minutes later"
+            if idx >= n_turn-n_response:
+                suffix = f" {self.utterance_token} "
+                response = utterance
+                outputs.append({"input":context + suffix,"output":response})
+            context += f" {self.utterance_token} {utterance}"
+        # append time-conditional sequence to the end of encoder input
+        context += f" {self.speaker_token} {instance['target_speaker']}: {self.time_token} {instance['time_elapsed']} later {self.utterance_token} "
+        response = instance["timely_response"]
+        outputs.append({"input":context,"output":response})
+        return {"augmented_data" : outputs}
+    
+    def __len__(self):
+        return len(self.inputs)
+
+    def __getitem__(self,idx):
+        input_text = self.inputs[idx]
+        output_text = self.outputs[idx]
+        tokenized_inputs = self.tokenizer(input_text, padding="max_length", truncation=True)
+        input_ids = tokenized_inputs["input_ids"]
+        attention_mask = tokenized_inputs["attention_mask"]
+        label_ids = self.tokenizer(output_text, padding="max_length", truncation=True)["input_ids"]
+        return torch.tensor(input_ids, dtype=torch.long), torch.tensor(attention_mask, dtype=torch.long), torch.tensor(label_ids, dtype=torch.long)
+
 
 class GapChatDataset(Dataset):
     def __init__(
@@ -138,7 +197,7 @@ class GapChatDataset(Dataset):
         even_previous_session = ""
         odd_previous_session = ""
         prefix = ""
-        first_turn = False
+        first_turn = True
         episode_cnt = 0
         # set data type
         filename = os.path.basename(self.data_path)
@@ -153,14 +212,22 @@ class GapChatDataset(Dataset):
                 gap = line.split('\\n')[-1].split(" Gap:")[1].split('\t')[0]
                 content = line.split('\\n')[0].split("text:")[1]
                 prefix = ""
-                if self.data_type == "time_unaware" and gap != 'No Gap' and first_turn:
-                    prefix = f"{self.time_token} {gap} later "
-                    first_turn = False
+                label_prefix = ""
+                if self.data_type == "time_unaware":
+                    label_prefix = f"{self.time_token} 0 minutes later "
+                    prefix = f"{self.time_token} 0 minutes later "
+                    if first_turn:
+                        prefix = "" if gap == "No Gap" else f"{self.time_token} {gap} later "
+                        if content == "":
+                            label_prefix = "" if gap == "No Gap" else f"{self.time_token} {gap} later "
+                        drop = np.random.rand() < self.instantaneous_dropout
+                        if drop:
+                            prefix = ""
+                        first_turn = False
                 if content != "":
                     text += f"{self.speaker_token} speaker_1: {prefix}{self.utterance_token} {content} "
-                    prefix = ""
                 # extract the label in the line
-                label = f"{self.speaker_token} speaker_2: {prefix}{self.utterance_token} {line.split('labels:')[1].split('\t')[0]} "
+                label = f"{self.speaker_token} speaker_2: {label_prefix}{self.utterance_token} {line.split('labels:')[1].split('\t')[0]} "
                             
                 # extract progress in the line
                 if self.data_type =='time' or self.data_type == 'both':
@@ -194,9 +261,9 @@ class GapChatDataset(Dataset):
                     else:
                         previous_session = odd_previous_session
                     data = {"text": text.strip(),
-                            "previous_session" : previous_session,
+                            "previous_session" : previous_session.strip(),
                             "gap" : gap,
-                            "labels" : label
+                            "labels" : label.strip()
                             }
                 data_lst.append(data)
                 
@@ -233,7 +300,6 @@ class GapChatDataset(Dataset):
         
         response = instance["labels"].split("<utt> ")[1]
         
-        
         if self.model_type == "seq2seq":
             input_ids = self.tokenizer(context, padding="max_length", truncation=True)["input_ids"]
             attention_mask = self.tokenizer(context, padding="max_length", truncation=True)["attention_mask"]
@@ -242,12 +308,9 @@ class GapChatDataset(Dataset):
             context += response
             input_ids = self.tokenizer(context, padding="max_length", truncation=True)["input_ids"]
             attention_mask = self.tokenizer(context, padding="max_length", truncation=True)["attention_mask"]
-            label_ids = input_ids
-
+            label_ids = label_ids[1:]
             input_ids = input_ids[:-1]
             attention_mask = attention_mask[:-1]
-            label_ids = label_ids[1:]
-
         return torch.tensor(input_ids, dtype=torch.long), torch.tensor(attention_mask, dtype=torch.long), torch.tensor(label_ids, dtype=torch.long)
         #return (context, response)
     

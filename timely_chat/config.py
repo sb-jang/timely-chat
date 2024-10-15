@@ -12,6 +12,7 @@ class ArtifactConfig:
     pretrained_model_weight_path: Optional[str] = field(help="모델 weight 경로, Optional - 지정하지 않으면 사전 학습 모델의 weight가 사용됩니다.")
     train_dataset_path: str = field("/home/namomo73/timely-chat/resources/data/train_augmented.json", help="학습에 사용할 데이터셋 경로")
     val_dataset_path: str = field("/home/namomo73/timely-chat/resources/data/valid_augmented.json", help="Validation에 사용할 데이터셋 경로")
+    data_augment: bool = field(False, help="sliding window 방식 채택 여부")
 
 
 @dataclass

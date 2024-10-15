@@ -34,7 +34,7 @@ from transformers import (
 from transformers.trainer_pt_utils import get_parameter_names
 
 from timely_chat.config import ArtifactConfig, ExecutionConfig, ExperimentConfig, TrainConfig
-from timely_chat.dataset import TimelyChatDataset, GapChatDataset
+from timely_chat.dataset import TimelyChatDataset, GapChatDataset, AugmentedDataset
 from timely_chat.utils.argparser import build_parser, parse_args
 from timely_chat.utils.logging import TQDM_FORMAT, create_logger
 from timely_chat.utils.utils import log_wandb_metric, log_wandb_param, print_config, set_seed
@@ -188,10 +188,13 @@ def run(
             from_hf = True
             split = "train"
         train_dataset = GapChatDataset(data_source=artifact_config.train_dataset_path, tokenizer=tokenizer, instantaneous_dropout=train_config.instantaneous_dropout, model_type=model_type, from_hf=from_hf, split=split)
-    else:    
-        with open(artifact_config.train_dataset_path, "r") as f:
-           train_dataset = json.load(f)
-        train_dataset = TimelyChatDataset(train_dataset, tokenizer, instantaneous_dropout=train_config.instantaneous_dropout, model_type=model_type)
+    else:
+        if artifact_config.data_augment:
+            train_dataset = AugmentedDataset(data_path=artifact_config.train_dataset_path, tokenizer=tokenizer, instantaneous_dropout=train_config.instantaneous_dropout)
+        else:
+            with open(artifact_config.train_dataset_path, "r") as f:
+                train_dataset = json.load(f)
+            train_dataset = TimelyChatDataset(train_dataset, tokenizer, instantaneous_dropout=train_config.instantaneous_dropout, model_type=model_type)
 
     train_datasampler = DistributedSampler(train_dataset, shuffle=True, drop_last=True)
     train_dataloader = DataLoader(
@@ -271,10 +274,10 @@ def run(
 
     model.gradient_checkpointing_enable()
     model.to(rank)
-
     logger.info(f"[+] Uploading model parameters to rank {rank}...")
-    model = DistributedDataParallel(model, device_ids=[rank], gradient_as_bucket_view=True)
-
+    model = DistributedDataParallel(model, device_ids=[rank], gradient_as_bucket_view=True,)
+    print(torch.cuda.memory_allocated() / 1024 /1024)
+    logger.info(f"[+] Model wrapping success...")
     # ==================================================
     # > Trainable Module Initialization
     # ==================================================
@@ -320,7 +323,6 @@ def run(
     scaler = GradScaler(enabled=use_amp)
 
     logging_loss = torch.tensor(0.0, device=torch.device(rank))
-
     # ==================================================
     # > Train Loop
     # ==================================================
@@ -504,11 +506,12 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        if logger:
-            logger.error(e, exc_info=e)
-        else:
-            raise
-        exit(-1)
+    main()
+    #try:
+    #    main()
+    #except Exception as e:
+    #    if logger:
+    #        logger.error(e, exc_info=e)
+    #    else:
+    #        raise
+    #    exit(-1)
