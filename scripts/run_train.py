@@ -127,12 +127,7 @@ def validation(
             label_ids = label_ids.to(rank)
             attention_mask = attention_mask.to(rank)
 
-            if model_type == "causal":
-                num_non_mask += (label_ids != LABEL_MASK_ID).sum()
-                logits = model(input_ids=input_ids, attention_mask=attention_mask).logits
-                loss = F.cross_entropy(logits.transpose(1, 2), label_ids, ignore_index=LABEL_MASK_ID, reduction="sum")
-            else:
-                loss = model(input_ids=input_ids, attention_mask = attention_mask, labels=label_ids).loss
+            loss = model(input_ids=input_ids, attention_mask = attention_mask, labels=label_ids).loss
             val_loss += loss
 
     dist.all_reduce(val_loss, op=dist.ReduceOp.SUM)
@@ -348,11 +343,7 @@ def run(
             attention_mask = attention_mask.to(rank)
 
             with autocast(enabled=use_amp, dtype=torch.bfloat16):
-                if model_type == "causal":
-                    output = model(input_ids=input_ids, attention_mask=attention_mask).logits
-                    loss = F.cross_entropy(output.transpose(1, 2), label_ids, ignore_index=LABEL_MASK_ID)
-                else:
-                    loss = model(input_ids=input_ids, attention_mask=attention_mask, labels=label_ids).loss
+                loss = model(input_ids=input_ids, attention_mask=attention_mask, labels=label_ids).loss
             loss /= train_config.gradient_accumulation_steps
             logging_loss += loss.detach()
 

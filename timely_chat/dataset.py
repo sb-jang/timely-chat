@@ -17,6 +17,8 @@ class TimelyChatDataset(Dataset):
         utterance_token: str = "<utt>",
         instantaneous_dropout: float = 0.0,
         model_type: str = "causal",
+        loss_response_only: bool = False,
+        use_prompt: bool = False,
     ):
         """
         Dataset for supervised finetuning
@@ -48,6 +50,8 @@ class TimelyChatDataset(Dataset):
         self.utterance_token = utterance_token
         self.instantaneous_dropout = instantaneous_dropout
         self.model_type = model_type
+        self.loss_response_only = loss_response_only
+        self.use_prompt = use_prompt
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
         instance = self.supervised_finetuning_instances[index]
@@ -70,15 +74,19 @@ class TimelyChatDataset(Dataset):
             input_ids = tokenized_inputs["input_ids"]
             attention_mask = tokenized_inputs["attention_mask"]
             label_ids = self.tokenizer(response, padding="max_length", truncation=True)["input_ids"]
+        
         else:
-            context += response
-            tokenized_inputs = self.tokenizer(context, padding="max_length", truncation=True)
-            input_ids = tokenized_inputs["input_ids"]
-            attention_mask = tokenized_inputs["attention_mask"]
-            label_ids = input_ids[1:]
-            input_ids = input_ids[:-1]
-            attention_mask = attention_mask[:-1]
-        return torch.tensor(input_ids, dtype=torch.long), torch.tensor(attention_mask, dtype=torch.long), torch.tensor(label_ids, dtype=torch.long)
+            response += self.tokenizer.eos_token
+            tokenized_inputs = self.tokenizer(context, response, padding="max_length", truncation=True, return_token_type_ids=True, return_tensors="pt")
+            answer_mask = tokenized_inputs.pop('token_type_ids').bool()
+            tokenized_inputs['labels'] = tokenized_inputs['input_ids'].clone()
+            label_mask = answer_mask if self.loss_response_only else tokenized_inputs['attention_mask'].bool()
+            tokenized_inputs['labels'][~label_mask] = -100
+            input_ids = tokenized_inputs['input_ids'].squeeze()
+            attention_mask = tokenized_inputs['attention_mask'].squeeze()
+            label_ids = tokenized_inputs['labels'].squeeze()
+            
+        return input_ids, attention_mask, label_ids
 
     def __len__(self) -> int:
         return len(self.supervised_finetuning_instances)

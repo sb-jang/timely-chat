@@ -36,6 +36,7 @@ class TrainConfig:
     hidden_dropout: float = field(0.2, help="Residual dropout ratio")
     attention_dropout: float = field(0.2, help="Attention dropout ratio")
     instantaneous_dropout: float = field(0.0, help="Instantaneous response time dropout ratio")
+    loss_response_only: bool=field(help="If True, only compute loss for delayed response")
 
 
 @dataclass

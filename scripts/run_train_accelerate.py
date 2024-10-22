@@ -64,7 +64,6 @@ def setup(experiment_config: ExperimentConfig, execution_config: ExecutionConfig
     logger = create_logger(__name__, experiment_config.log_output_dir, log_level)
 
     # wandb setup
-    #wandb.init(project=experiment_config.experiment_name)
     logger.info(f"[+] Start tracking to WandB with project: {experiment_config.experiment_name}")
 
     # partial patch for utility functions
@@ -91,25 +90,20 @@ def validation(
     """
     device = accelerator.device
     val_loss = torch.tensor([0.0], dtype=torch.float32).to(device)
-    num_non_mask = torch.tensor([0.0], dtype=torch.float32).to(device)
+    #num_non_mask = torch.tensor([0.0], dtype=torch.float32).to(device)
 
     with torch.no_grad():
         for input_ids, attention_mask, label_ids in tqdm(dataloader, disable= not accelerator.is_main_process):
             input_ids = input_ids.to(device)
             label_ids = label_ids.to(device)
             attention_mask = attention_mask.to(device)            
-            if model_type == "causal":
-                num_non_mask += (label_ids != LABEL_MASK_ID).sum()
-                logits = model(input_ids=input_ids, attention_mask=attention_mask).logits
-                loss = F.cross_entropy(logits.transpose(1, 2), label_ids, ignore_index=LABEL_MASK_ID, reduction="sum")
-            else:
-                loss = model(input_ids=input_ids, attention_mask = attention_mask, labels=label_ids).loss
+            loss = model(input_ids=input_ids, attention_mask = attention_mask, labels=label_ids).loss
             val_loss += loss
 
-    val_loss = accelerator.reduce(val_loss,reduction="sum")
-    num_non_mask = accelerator.reduce(num_non_mask, reduction="sum")
-    denominator = num_non_mask if model_type == "causal" else len(dataloader)
-    val_loss /= denominator
+    #val_loss = accelerator.reduce(val_loss,reduction="sum")
+    #num_non_mask = accelerator.reduce(num_non_mask, reduction="sum")
+    #denominator = num_non_mask if model_type == "causal" else len(dataloader)
+    val_loss /= len(dataloader)
     val_ppl = torch.exp(val_loss)
     return val_loss.item(), val_ppl.item()
 
@@ -170,7 +164,7 @@ def run(
         else:
             with open(artifact_config.train_dataset_path, "r") as f:
                 train_dataset = json.load(f)
-            train_dataset = TimelyChatDataset(train_dataset, tokenizer, instantaneous_dropout=train_config.instantaneous_dropout, model_type=model_type)
+            train_dataset = TimelyChatDataset(train_dataset, tokenizer, instantaneous_dropout=train_config.instantaneous_dropout, model_type=model_type, loss_response_only=train_config.loss_response_only)
 
     train_dataloader = DataLoader(
         dataset=train_dataset,
@@ -193,7 +187,7 @@ def run(
     else:
         with open(artifact_config.val_dataset_path, "r") as f:
            val_dataset = json.load(f)
-        val_dataset = TimelyChatDataset(val_dataset, tokenizer, model_type=model_type)
+        val_dataset = TimelyChatDataset(val_dataset, tokenizer, model_type=model_type, loss_response_only=train_config.loss_response_only)
 
     val_dataloader = DataLoader(
         dataset=val_dataset,
@@ -238,12 +232,6 @@ def run(
                 artifact_config.pretrained_model_weight_path, config=model_config
             )
 
-    # patch embedding layers
-    if train_config.use_8bit_adam:
-        manager = GlobalOptimManager.get_instance()
-        for module in model.modules():
-            if isinstance(module, torch.nn.Embedding):
-                manager.register_module_override(module, "weight", {"optim_bits": 32})  
     
     logger.info(f"[+] Uploading model parameters to Device...")
     model.gradient_checkpointing_enable()
@@ -318,9 +306,6 @@ def run(
             with accelerator.accumulate(model):
                 with accelerator.autocast(model):
                     if model_type == "causal":
-                        output = model(input_ids=input_ids).logits
-                        loss = F.cross_entropy(output.transpose(1, 2), label_ids, ignore_index=LABEL_MASK_ID)
-                    else:
                         loss = model(input_ids=input_ids, attention_mask=attention_mask, labels=label_ids).loss
                 accelerator.backward(loss)
                 logging_loss += loss.detach()
@@ -346,8 +331,6 @@ def run(
                         dtype=torch.float32,
                     ).to(device)
                     usage = usage / (accelerator.num_processes * 1024 * 1024)
-                    #logging_loss = accelerator.reduce(logging_loss, reduction = "sum")
-                    #mean_loss = logging_loss / (experiment_config.steps_per_log * accelerator.num_processes)
                     mean_loss = logging_loss / (experiment_config.steps_per_log)
                     mean_loss = mean_loss.item()
 
@@ -357,24 +340,18 @@ def run(
                         f"[+] Epoch: {epoch}, Step: {step}/{total_steps}, "
                         f"LR: {lr:.4e}, Loss: {mean_loss:2.4f}, PPL: {ppl:.4f}"
                     )
-                    #accelerator.log({"lr":lr})
-                    #accelerator.log({"train/loss":mean_loss})
-                    #accelerator.log({"train/ppl":ppl})
-                    log_wandb_metric("lr", lr, step)
-                    log_wandb_metric("train/loss", mean_loss, step)
-                    log_wandb_metric("train/ppl", ppl, step)
+                    wandb.log({"lr":lr})
+                    wandb.log({"train/loss":mean_loss})
+                    wandb.log({"train/ppl":ppl})
+
 
                     # average GPU usage
                     usage = usage.cpu()
-                    #accelerator.log({"gpu_allocated":usage[0]})
-                    #accelerator.log({"gpu_max_allocated":usage[1]})
-                    #accelerator.log({"gpu_reserved":usage[2]})
-                    #accelerator.log({"gpu_max_reserved":usage[3]})
-                    
-                    log_wandb_metric("gpu_allocated", usage[0], step)
-                    log_wandb_metric("gpu_max_allocated", usage[1], step)
-                    log_wandb_metric("gpu_reserved", usage[2], step)
-                    log_wandb_metric("gpu_max_reserved", usage[3], step)
+                    wandb.log({"gpu_allocated":usage[0]})
+                    wandb.log({"gpu_max_allocated":usage[1]})
+                    wandb.log({"gpu_reserved":usage[2]})
+                    wandb.log({"gpu_max_reserved":usage[3]})
+
 
                     logging_loss = torch.tensor(0.0, device=device)
 
@@ -387,10 +364,9 @@ def run(
                     logger.info(
                         f"\t[+] Epoch: {epoch}, Step: {step}/{total_steps}, Loss: {val_loss:2.4f}, PPL: {val_ppl:.4f}"
                     )
-                    log_wandb_metric("valid/loss", val_loss, step)
-                    log_wandb_metric("valid/ppl", val_ppl, step)
-                #accelerator.log({"valid/loss":val_loss})
-                #accelerator.log({"valid/ppl":val_ppl})
+
+                    wandb.log({"valid/loss":val_loss})
+                    wandb.log({"valid/ppl":val_ppl})
 
                 model.train()
 
@@ -411,7 +387,7 @@ def run(
                     is_main_process=accelerator.is_main_process,
                     save_function=accelerator.save,
                 )
-                #accelerator.save_model(model, model_weight_path)
+
                 torch.cuda.empty_cache()
 
     # ==================================================
@@ -423,10 +399,9 @@ def run(
     if accelerator.is_main_process:
         logger.info("[+] Final Validation Result")
         logger.info(f"\t[+] Loss: {val_loss:2.4f}, PPL: {val_ppl:.4f}")
-        #accelerator.log({"valid/loss" : val_loss})
-        #accelerator.log({"valid/ppl" : val_ppl})
-        log_wandb_metric("valid/loss", val_loss, total_steps)
-        log_wandb_metric("valid/ppl", val_ppl, total_steps)
+        wandb.log({"valid/loss" : val_loss})
+        wandb.log({"valid/ppl" : val_ppl})
+
 
     # ==================================================
     # > Save the trained model
@@ -468,23 +443,14 @@ def main():
     experiment_config = parse_args(parser, ExperimentConfig)
     execution_config = parse_args(parser, ExecutionConfig)
 
-    experiment_config.weight_output_dir = os.path.join(experiment_config.weight_output_dir, experiment_config.run_name)
-
     os.makedirs(experiment_config.weight_output_dir, exist_ok=True)
     os.makedirs(experiment_config.log_output_dir, exist_ok=True)
 
     assert torch.cuda.is_available()
 
-    #deepspeed_config = DeepSpeedPlugin(
-    #zero_stage=2,  # 또는 원하는 설정으로 stage 지정
-    #offload_optimizer_device="none",  # 옵션에 맞게 조정
-    #gradient_accumulation_steps=1,
-    #)
-
     # start training
     print("accelerator for training...")
     world_size = torch.cuda.device_count()
-    #accelerator = Accelerator(mixed_precision="bf16" if train_config.use_amp else None, gradient_accumulation_steps=train_config.gradient_accumulation_steps, deepspeed_plugin=deepspeed_config, log_with="wandb")
     accelerator = Accelerator(mixed_precision="bf16" if train_config.use_amp else None, gradient_accumulation_steps=train_config.gradient_accumulation_steps)
     if accelerator.is_main_process:
         wandb.init(project=experiment_config.experiment_name,    
@@ -493,14 +459,6 @@ def main():
             "experiment_config" : experiment_config,
             "execution_config" : execution_config,
             })
-    #accelerator.init_trackers(
-    #project_name=experiment_config.experiment_name, 
-    #config={"artifact_config": artifact_config, 
-    #        "train_config" : train_config,
-    #        "experiment_config" : experiment_config,
-    #        "execution_config" : execution_config,
-    #        }
-    #)
     
     run(accelerator, artifact_config, train_config, experiment_config, execution_config)
 
