@@ -74,6 +74,9 @@ class TimelyChatDataset(Dataset):
             input_ids = tokenized_inputs["input_ids"]
             attention_mask = tokenized_inputs["attention_mask"]
             label_ids = self.tokenizer(response, padding="max_length", truncation=True)["input_ids"]
+            input_ids = torch.tensor(input_ids, dtype=torch.long)
+            attention_mask = torch.tensor(attention_mask, dtype=torch.long)
+            label_ids = torch.tensor(label_ids, dtype=torch.long)
         
         else:
             response += self.tokenizer.eos_token
